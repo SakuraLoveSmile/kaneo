@@ -3,3 +3,7 @@ title: exportTasks
 description: Export all tasks from a project
 openapi: 'GET /task/export/{projectId}'
 ---
+
+This export contains task fields and labels only. It does not include milestone
+records or milestone associations; use the milestone endpoints to read or
+recreate roadmap structure.

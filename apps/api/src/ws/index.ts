@@ -275,6 +275,7 @@ const taskUpdateEvents = [
   "task.due_date_changed",
   "task.title_changed",
   "task.description_changed",
+  "task.milestone_changed",
   "task.label_assigned",
   "task.label_unassigned",
   "task.label_created",
@@ -285,6 +286,14 @@ const taskUpdateEvents = [
   "comment.deleted",
   "comment.updated",
 ];
+
+const milestoneRefreshTaskEvents = new Set([
+  "task.created",
+  "task.deleted",
+  "task.status_changed",
+  "task.updated",
+  "task.milestone_changed",
+]);
 
 subscribeToEvent<{
   taskId: string;
@@ -306,12 +315,38 @@ subscribeToEvent<{
     { type: "TASK_MOVED", projectId: toProjectId, taskId },
     initiatorId,
   );
+  broadcastToProject(toProjectId, {
+    type: "MILESTONES_UPDATED",
+    projectId: toProjectId,
+  });
   broadcastToProject(
     fromProjectId,
     { type: "TASK_MOVED", projectId: fromProjectId, taskId },
     initiatorId,
   );
+  broadcastToProject(fromProjectId, {
+    type: "MILESTONES_UPDATED",
+    projectId: fromProjectId,
+  });
 });
+
+for (const eventName of [
+  "milestone.created",
+  "milestone.updated",
+  "milestone.deleted",
+  "workflow.updated",
+]) {
+  subscribeToEvent<{ projectId: string }>(eventName, async (data) => {
+    if (!data.projectId) return;
+
+    // Roadmap refreshes are deliberately sent to the initiating connection
+    // too. Every client re-reads the committed aggregate after a mutation.
+    broadcastToProject(data.projectId, {
+      type: "MILESTONES_UPDATED",
+      projectId: data.projectId,
+    });
+  });
+}
 
 subscribeToEvent<{
   projectId: string;
@@ -387,5 +422,12 @@ for (const eventName of taskUpdateEvents) {
       },
       initiatorId,
     );
+
+    if (milestoneRefreshTaskEvents.has(eventName)) {
+      broadcastToProject(projectId, {
+        type: "MILESTONES_UPDATED",
+        projectId,
+      });
+    }
   });
 }

@@ -398,6 +398,33 @@ export const workflowRuleTable = pgTable(
   ],
 );
 
+export const milestoneTable = pgTable(
+  "milestone",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projectTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    name: text("name").notNull(),
+    description: text("description"),
+    status: text("status").notNull().default("planned"),
+    startDate: timestamp("start_date", { mode: "date" }),
+    targetDate: timestamp("target_date", { mode: "date" }),
+    completedAt: timestamp("completed_at", { mode: "date" }),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("milestone_projectId_idx").on(table.projectId)],
+);
+
 export const taskTable = pgTable(
   "task",
   {
@@ -423,6 +450,10 @@ export const taskTable = pgTable(
       onDelete: "set null",
       onUpdate: "cascade",
     }),
+    milestoneId: text("milestone_id").references(() => milestoneTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
     priority: text("priority").default("low").notNull(),
     startDate: timestamp("start_date", { mode: "date" }),
     dueDate: timestamp("due_date", { mode: "date" }),
@@ -437,6 +468,7 @@ export const taskTable = pgTable(
     index("task_dueDate_idx").on(table.dueDate),
     index("task_assigneeId_idx").on(table.userId),
     index("task_columnId_idx").on(table.columnId),
+    index("task_milestoneId_idx").on(table.milestoneId),
     unique("task_project_number_unique").on(table.projectId, table.number),
   ],
 );

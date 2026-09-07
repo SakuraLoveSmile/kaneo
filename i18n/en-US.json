@@ -2158,5 +2158,118 @@
 		"branding": {
 			"poweredBy": "Powered by"
 		}
+	},
+	"roadmap": {
+		"title": "Roadmap",
+		"milestone": "Milestone",
+		"milestones": "Milestones",
+		"noMilestone": "No milestone",
+		"selectMilestone": "Select Milestone",
+		"unknownMilestone": "Another milestone",
+		"loadErrorRetained": "Milestone (error loading)",
+		"noMilestonesInProject": "No milestones in this project",
+		"createMilestone": "New milestone",
+		"createMilestoneDesc": "Plan major project goals, deliverables, and timelines.",
+		"noMilestonesFound": "No milestones found",
+		"tryAdjustingFilters": "Try adjusting your search or status filter.",
+		"createFirstMilestone": "Create your first milestone to start tracking goals.",
+		"overdue": "Overdue",
+		"due": "Due",
+		"starts": "Starts",
+		"unscheduled": "Unscheduled Milestones",
+		"today": "Today",
+		"scheduledCount": "scheduled",
+		"unscheduledCount": "unscheduled",
+		"noMilestonesInPeriod": "No milestones in this period",
+		"searchPlaceholder": "Filter milestones...",
+		"milestoneDetails": "Milestone Details",
+		"deleteSuccess": "Milestone deleted. Associated tasks were preserved.",
+		"taskUnlinked": "Milestone removed from task",
+		"views": {
+			"timeline": "Timeline",
+			"list": "List"
+		},
+		"scale": {
+			"month": "Month",
+			"quarter": "Quarter"
+		},
+		"status": {
+			"all": "All statuses",
+			"planned": "Planned",
+			"active": "In Progress",
+			"completed": "Completed",
+			"canceled": "Canceled"
+		},
+		"fields": {
+			"name": "Name",
+			"namePlaceholder": "e.g., v1.0 Launch, Beta Release",
+			"description": "Description",
+			"descriptionPlaceholder": "Add details or goals for this milestone...",
+			"status": "Status",
+			"startDate": "Start date",
+			"targetDate": "Target date",
+			"pickDate": "Pick date",
+			"clearDate": "Clear",
+			"optional": "(optional)",
+			"schedule": "Schedule"
+		},
+		"form": {
+			"nameRequired": "Name is required",
+			"invalidDateRange": "Start date must be on or before target date",
+			"invalidDescriptionLength": "Description must be 20,000 characters or less",
+			"createButton": "Create milestone",
+			"creatingButton": "Creating...",
+			"createSuccess": "Milestone created successfully",
+			"saveSuccess": "Milestone updated successfully"
+		},
+		"progress": {
+			"title": "Progress",
+			"tasksCompleted": "tasks completed",
+			"remaining_one": "{{count}} task remaining",
+			"remaining_other": "{{count}} tasks remaining",
+			"allDone": "All tasks completed!"
+		},
+		"linkedTasks": {
+			"title": "Linked tasks",
+			"subtitle": "Tasks contributing to this milestone",
+			"createTask": "New task",
+			"noTasks": "No tasks yet",
+			"noTasksDesc": "Link existing tasks or create new ones to track progress."
+		},
+		"timeline": {
+			"due": "Due {{date}}",
+			"starts": "Starts {{date}}"
+		},
+		"linkTask": {
+			"button": "Link task",
+			"searchPlaceholder": "Search tasks...",
+			"noTasksFound": "No tasks found",
+			"loadError": "Failed to load tasks",
+			"alreadyLinked": "Already linked to this milestone",
+			"switchAction": "Switch",
+			"linkAction": "Link",
+			"unlinkAction": "Unlink from milestone",
+			"switchSuccess": "Task association switched successfully",
+			"linkSuccess": "Task linked to milestone"
+		},
+		"deleteConfirm": {
+			"title": "Delete milestone?",
+			"desc": "Deleting this milestone will not delete associated tasks. Tasks will simply be unlinked and preserved in the project."
+		},
+		"conflict": {
+			"title": "Remote changes detected",
+			"desc": "Another window or user updated some fields. You can adopt remote values or keep your draft to overwrite upon save.",
+			"acceptRemote": "Adopt remote",
+			"keepLocal": "Keep my edits",
+			"unresolved": "Please resolve remote edit conflicts before saving."
+		},
+		"errors": {
+			"resourceUnavailable": "This milestone is no longer available or was deleted.",
+			"permissionDenied": "You don't have permission to view or edit this milestone.",
+			"loadFailed": "Failed to load milestone",
+			"projectMismatch": "This milestone belongs to another project.",
+			"projectMismatchDesc": "Editing, deleting, and linking tasks are disabled for milestones from another project.",
+			"tasksLoadFailed": "Failed to load linked tasks."
+		}
 	}
 }

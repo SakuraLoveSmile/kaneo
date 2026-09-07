@@ -16,6 +16,7 @@ function useCreateTask() {
       startDate,
       dueDate,
       priority,
+      milestoneId,
     }: CreateTaskRequest) =>
       createTask(
         title,
@@ -26,11 +27,26 @@ function useCreateTask() {
         startDate ? new Date(startDate) : undefined,
         dueDate ? new Date(dueDate) : undefined,
         priority,
+        milestoneId,
       ),
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({
         queryKey: ["tasks", variables.projectId],
       });
+      void queryClient.invalidateQueries({
+        queryKey: ["milestone-task-options", variables.projectId],
+      });
+      if (variables.milestoneId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["milestones", variables.projectId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["milestone", variables.projectId, variables.milestoneId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["milestone-tasks", variables.projectId],
+        });
+      }
     },
   });
 }

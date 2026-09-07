@@ -45,6 +45,7 @@ import updateTask from "./controllers/update-task";
 import updateTaskAssignee from "./controllers/update-task-assignee";
 import updateTaskDescription from "./controllers/update-task-description";
 import updateTaskDueDate from "./controllers/update-task-due-date";
+import updateTaskMilestone from "./controllers/update-task-milestone";
 import updateTaskPriority from "./controllers/update-task-priority";
 import updateTaskStatus from "./controllers/update-task-status";
 import updateTaskTitle from "./controllers/update-task-title";
@@ -75,6 +76,7 @@ import {
   updatePriorityBody,
   updateStatusBody,
   updateTaskBody,
+  updateTaskMilestoneBody,
   updateTitleBody,
 } from "./schema";
 
@@ -205,6 +207,9 @@ const moveTaskRoute = createRoute({
       "No workspace access, or missing task:update permission",
     ),
     404: errorResponse("Task or destination project not found"),
+    409: errorResponse(
+      "The task's workspace changed before the move completed",
+    ),
   },
 });
 
@@ -215,7 +220,7 @@ const updateTaskRoute = createRoute({
   tags: ["Tasks"],
   summary: "Update task",
   description:
-    "Replace every field of a task. Use the single-field routes for narrower edits.",
+    "Replace every field of a task. Omit milestoneId to preserve its current association; use the single-field routes for narrower edits.",
   middleware: [
     workspaceAccess.fromTask(),
     requireWorkspacePermission({ task: ["update"] }),
@@ -234,6 +239,42 @@ const updateTaskRoute = createRoute({
     400: errorResponse("Invalid body, or unknown task"),
     403: errorResponse(
       "No workspace access, or missing task:update or task:assign permission",
+    ),
+    409: errorResponse(
+      "The task's project changed before the update completed",
+    ),
+  },
+});
+
+const updateTaskMilestoneRoute = createRoute({
+  method: "put",
+  operationId: "updateTaskMilestone",
+  path: "/milestone/{id}",
+  tags: ["Tasks"],
+  summary: "Update task milestone",
+  description:
+    "Set or clear the milestone associated with a task. The milestone must belong to the task's project; null clears the association.",
+  middleware: [
+    workspaceAccess.fromTask(),
+    requireWorkspacePermission({ task: ["update"] }),
+    requireEntitlement,
+  ] as const,
+  request: {
+    params: taskParam,
+    body: {
+      required: true,
+      content: { "application/json": { schema: updateTaskMilestoneBody } },
+    },
+  },
+  responses: {
+    200: jsonResponse("The updated task", taskSchema),
+    400: errorResponse("Invalid milestone, or unknown task"),
+    403: errorResponse(
+      "No workspace access, or missing task:update permission",
+    ),
+    404: errorResponse("Task was deleted before the update completed"),
+    409: errorResponse(
+      "The task's project changed before the update completed",
     ),
   },
 });
@@ -581,8 +622,16 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
   })
   .openapi(createTaskRoute, async (c) => {
     const { projectId } = c.req.param();
-    const { title, description, startDate, dueDate, priority, status, userId } =
-      c.req.valid("json");
+    const {
+      title,
+      description,
+      startDate,
+      dueDate,
+      priority,
+      status,
+      userId,
+      milestoneId,
+    } = c.req.valid("json");
 
     const parsedStartDate =
       startDate !== undefined
@@ -599,6 +648,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       projectId,
       currentUserId: c.get("userId"),
       userId: userId,
+      milestoneId: milestoneId,
       title,
       description,
       startDate: parsedStartDate,
@@ -626,6 +676,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       destinationProjectId,
       destinationStatus,
       currentUserId,
+      workspaceId: c.get("workspaceId"),
     });
 
     return c.json(result, 200);
@@ -642,6 +693,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       projectId,
       position,
       userId,
+      milestoneId,
     } = c.req.valid("json");
 
     const currentUserId = c.get("userId");
@@ -669,7 +721,19 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       position,
       userId,
       currentUserId,
+      milestoneId,
     );
+
+    return c.json(task, 200);
+  })
+  .openapi(updateTaskMilestoneRoute, async (c) => {
+    const { id } = c.req.valid("param");
+    const { milestoneId } = c.req.valid("json");
+    const task = await updateTaskMilestone({
+      id,
+      milestoneId,
+      currentUserId: c.get("userId"),
+    });
 
     return c.json(task, 200);
   })

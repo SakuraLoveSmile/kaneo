@@ -2151,5 +2151,117 @@
 		"branding": {
 			"poweredBy": "由以下技术提供支持"
 		}
+	},
+	"roadmap": {
+		"title": "路线图",
+		"milestone": "里程碑",
+		"milestones": "里程碑",
+		"noMilestone": "无里程碑",
+		"selectMilestone": "选择里程碑",
+		"unknownMilestone": "其他里程碑",
+		"loadErrorRetained": "里程碑 (加载失败)",
+		"noMilestonesInProject": "当前项目中没有里程碑",
+		"createMilestone": "新建里程碑",
+		"createMilestoneDesc": "规划项目重大目标、交付物和时间周期。",
+		"noMilestonesFound": "未找到里程碑",
+		"tryAdjustingFilters": "请尝试调整搜索关键词或状态筛选条件。",
+		"createFirstMilestone": "创建您的第一个里程碑以开始跟踪项目目标。",
+		"overdue": "已逾期",
+		"due": "截止日期",
+		"starts": "开始日期",
+		"unscheduled": "未排期里程碑",
+		"today": "今天",
+		"scheduledCount": "已排期",
+		"unscheduledCount": "未排期",
+		"noMilestonesInPeriod": "该时间段内无里程碑",
+		"searchPlaceholder": "筛选里程碑...",
+		"milestoneDetails": "里程碑详情",
+		"deleteSuccess": "里程碑已删除，关联任务已保留。",
+		"taskUnlinked": "已从任务移除里程碑",
+		"views": {
+			"timeline": "时间轴",
+			"list": "列表"
+		},
+		"scale": {
+			"month": "按月",
+			"quarter": "按季度"
+		},
+		"status": {
+			"all": "全部状态",
+			"planned": "计划中",
+			"active": "进行中",
+			"completed": "已完成",
+			"canceled": "已取消"
+		},
+		"fields": {
+			"name": "名称",
+			"namePlaceholder": "例如：v1.0 发布、公开测试版",
+			"description": "描述",
+			"descriptionPlaceholder": "添加此里程碑的详细说明或目标...",
+			"status": "状态",
+			"startDate": "开始日期",
+			"targetDate": "目标日期",
+			"pickDate": "选择日期",
+			"clearDate": "清除",
+			"optional": "（可选）",
+			"schedule": "排期"
+		},
+		"form": {
+			"nameRequired": "请输入里程碑名称",
+			"invalidDateRange": "开始日期必须早于或等于目标日期",
+			"invalidDescriptionLength": "描述不能超过 20,000 个字符",
+			"createButton": "创建里程碑",
+			"creatingButton": "创建中…",
+			"createSuccess": "里程碑创建成功",
+			"saveSuccess": "里程碑更新成功"
+		},
+		"progress": {
+			"title": "进度",
+			"tasksCompleted": "个任务已完成",
+			"remaining_other": "剩余 {{count}} 个任务",
+			"allDone": "全部任务已完成！"
+		},
+		"linkedTasks": {
+			"title": "关联任务",
+			"subtitle": "为此里程碑做出贡献的任务",
+			"createTask": "新建任务",
+			"noTasks": "暂无关联任务",
+			"noTasksDesc": "关联现有任务或新建任务以跟踪进度。"
+		},
+		"timeline": {
+			"due": "截止于 {{date}}",
+			"starts": "开始于 {{date}}"
+		},
+		"linkTask": {
+			"button": "关联任务",
+			"searchPlaceholder": "搜索任务...",
+			"noTasksFound": "未找到任务",
+			"loadError": "加载任务失败",
+			"alreadyLinked": "已关联到此里程碑",
+			"switchAction": "切换",
+			"linkAction": "关联",
+			"unlinkAction": "从里程碑取消关联",
+			"switchSuccess": "任务关联已切换",
+			"linkSuccess": "任务已成功关联到里程碑"
+		},
+		"deleteConfirm": {
+			"title": "删除里程碑？",
+			"desc": "删除此里程碑不会删除其关联的任务。任务仅会被取消关联并保留在项目中。"
+		},
+		"errors": {
+			"resourceUnavailable": "此里程碑已不存在或已被删除。",
+			"loadFailed": "加载里程碑失败",
+			"permissionDenied": "您没有查看或编辑此里程碑的权限。",
+			"projectMismatch": "该里程碑属于其他项目。",
+			"projectMismatchDesc": "禁止对其他项目的里程碑进行编辑、删除和关联任务。",
+			"tasksLoadFailed": "加载关联任务失败。"
+		},
+		"conflict": {
+			"acceptRemote": "采用最新值",
+			"desc": "其他窗口或用户修改了部分字段。你可以采用最新值，或保留本地草稿以在保存时覆盖。",
+			"keepLocal": "继续以本地草稿覆盖",
+			"title": "检测到远端修改",
+			"unresolved": "请在保存前解决并发修改冲突。"
+		}
 	}
 }

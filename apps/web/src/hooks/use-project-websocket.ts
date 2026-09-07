@@ -43,7 +43,22 @@ export function useProjectWebSocket(projectId: string) {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        const wasReconnecting = retriesRef.current > 0;
         retriesRef.current = 0; // Reset retries on successful connection
+        // Refresh project data on connect or reconnection
+        if (wasReconnecting) {
+          queryClient.invalidateQueries({
+            queryKey: ["milestones", projectId],
+          });
+          queryClient.invalidateQueries({ queryKey: ["milestone", projectId] });
+          queryClient.invalidateQueries({
+            queryKey: ["milestone-tasks", projectId],
+          });
+          queryClient.invalidateQueries({
+            queryKey: ["milestone-task-options", projectId],
+          });
+          queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+        }
         // Start keepalive pings to prevent Cloudflare idle timeout (100s)
         clearPing();
         pingIntervalRef.current = setInterval(() => {
@@ -56,6 +71,28 @@ export function useProjectWebSocket(projectId: string) {
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
+          if (message.type === "MILESTONES_UPDATED") {
+            queryClient.invalidateQueries({
+              queryKey: ["milestones", message.projectId],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["milestone", message.projectId],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["milestone-tasks", message.projectId],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["milestone-task-options", message.projectId],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["tasks", message.projectId],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["task"],
+            });
+            return;
+          }
+
           if (
             message.type === "TASK_UPDATED" ||
             message.type === "TASK_CREATED" ||
@@ -67,6 +104,20 @@ export function useProjectWebSocket(projectId: string) {
           ) {
             queryClient.invalidateQueries({
               queryKey: ["tasks", message.projectId],
+            });
+
+            // Milestone summaries and linked tasks depend on task state
+            queryClient.invalidateQueries({
+              queryKey: ["milestones", message.projectId],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["milestone", message.projectId],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["milestone-tasks", message.projectId],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["milestone-task-options", message.projectId],
             });
 
             if (message.type === "TASK_RELATION_UPDATED") {

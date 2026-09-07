@@ -115,7 +115,7 @@ function formatOptionalIso(value: unknown): string | undefined {
 function buildFullTaskUpdateBody(
   existing: Record<string, unknown>,
   patch: Record<string, unknown>,
-): Record<string, string | number | undefined> {
+): Record<string, string | number | null | undefined> {
   const positionRaw = patch.position ?? existing.position;
   const position =
     typeof positionRaw === "number"
@@ -174,7 +174,7 @@ function buildFullTaskUpdateBody(
     patch.dueDate !== undefined ? patch.dueDate : existing.dueDate,
   );
 
-  const body: Record<string, string | number | undefined> = {
+  const body: Record<string, string | number | null | undefined> = {
     title,
     description,
     status,
@@ -185,6 +185,10 @@ function buildFullTaskUpdateBody(
   if (startDate !== undefined) body.startDate = startDate;
   if (dueDate !== undefined) body.dueDate = dueDate;
   if (userId !== undefined) body.userId = userId;
+  if (patch.milestoneId !== undefined) {
+    body.milestoneId =
+      patch.milestoneId === null ? null : String(patch.milestoneId);
+  }
   return body;
 }
 
@@ -203,6 +207,23 @@ const optionalIsoDateTimeSchema = isoDateTimeSchema.optional();
 const nullableOptionalIsoDateTimeSchema = isoDateTimeSchema
   .nullable()
   .optional();
+const milestoneStatusSchema = z.enum([
+  "planned",
+  "active",
+  "completed",
+  "canceled",
+]);
+const milestoneCalendarDateSchema = z
+  .string()
+  .regex(
+    /^(\d{4}-\d{2}-\d{2})(?:T00:00:00(?:\.000)?Z)?$/i,
+    "Expected a calendar date in YYYY-MM-DD format (or UTC midnight YYYY-MM-DDT00:00:00.000Z)",
+  );
+const optionalNullableMilestoneCalendarDateSchema = milestoneCalendarDateSchema
+  .nullable()
+  .optional();
+const milestoneNameSchema = nonEmptyString.max(200);
+const milestoneDescriptionSchema = z.string().max(20_000);
 const hexColorSchema = z
   .string()
   .regex(
@@ -279,6 +300,119 @@ export function registerMcpTools(
     },
     async (args) =>
       run(() => client.json(`/api/project/${encodeURIComponent(args.id)}`)),
+  );
+
+  const milestoneFields = {
+    name: milestoneNameSchema,
+    description: milestoneDescriptionSchema.nullable().optional(),
+    status: milestoneStatusSchema.optional(),
+    startDate: optionalNullableMilestoneCalendarDateSchema,
+    targetDate: optionalNullableMilestoneCalendarDateSchema,
+    completedAt: nullableOptionalIsoDateTimeSchema,
+  };
+
+  registerTool(
+    "list_milestones",
+    {
+      description: "List milestones and progress for a project.",
+      inputSchema: z.object({ projectId: nonEmptyString }),
+    },
+    async (args) =>
+      run(() =>
+        client.json(
+          `/api/milestone/project/${encodeURIComponent(args.projectId)}`,
+          { method: "GET" },
+        ),
+      ),
+  );
+
+  registerTool(
+    "get_project_roadmap",
+    {
+      description: "Get the project's roadmap milestones and progress.",
+      inputSchema: z.object({ projectId: nonEmptyString }),
+    },
+    async (args) =>
+      run(() =>
+        client.json(
+          `/api/milestone/project/${encodeURIComponent(args.projectId)}`,
+          { method: "GET" },
+        ),
+      ),
+  );
+
+  registerTool(
+    "get_milestone",
+    {
+      description: "Get one milestone and its current progress.",
+      inputSchema: z.object({ id: nonEmptyString }),
+    },
+    async (args) =>
+      run(() =>
+        client.json(`/api/milestone/${encodeURIComponent(args.id)}`, {
+          method: "GET",
+        }),
+      ),
+  );
+
+  registerTool(
+    "create_milestone",
+    {
+      description: "Create a milestone in a project.",
+      inputSchema: z.object({
+        projectId: nonEmptyString,
+        ...milestoneFields,
+      }),
+    },
+    async (args) => {
+      const { projectId, ...body } = args;
+      return run(() =>
+        client.json(`/api/milestone/project/${encodeURIComponent(projectId)}`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+    },
+  );
+
+  registerTool(
+    "update_milestone",
+    {
+      description:
+        "Update a milestone. Omitted fields stay unchanged and null clears nullable fields.",
+      inputSchema: z.object({
+        id: nonEmptyString,
+        name: milestoneNameSchema.optional(),
+        description: milestoneDescriptionSchema.nullable().optional(),
+        status: milestoneStatusSchema.optional(),
+        startDate: optionalNullableMilestoneCalendarDateSchema,
+        targetDate: optionalNullableMilestoneCalendarDateSchema,
+        completedAt: nullableOptionalIsoDateTimeSchema,
+      }),
+    },
+    async (args) => {
+      const { id, ...body } = args;
+      return run(() =>
+        client.json(`/api/milestone/${encodeURIComponent(id)}`, {
+          method: "PUT",
+          body: JSON.stringify(body),
+        }),
+      );
+    },
+  );
+
+  registerTool(
+    "delete_milestone",
+    {
+      description: "Delete a milestone while keeping and unlinking its tasks.",
+      inputSchema: z.object({ id: nonEmptyString }),
+    },
+    async (args) =>
+      run(() =>
+        client.json(`/api/milestone/${encodeURIComponent(args.id)}`, {
+          method: "DELETE",
+        }),
+      ),
   );
 
   registerTool(
@@ -370,6 +504,7 @@ export function registerMcpTools(
         status: optionalNonEmptyString,
         priority: prioritySchema.optional(),
         assigneeId: optionalNonEmptyString,
+        milestoneId: optionalNonEmptyString,
         page: z.number().int().positive().optional(),
         limit: z.number().int().positive().optional(),
         sortBy: z
@@ -430,10 +565,11 @@ export function registerMcpTools(
         startDate: optionalIsoDateTimeSchema,
         dueDate: optionalIsoDateTimeSchema,
         userId: optionalNonEmptyString,
+        milestoneId: nullableOptionalNonEmptyString,
       }),
     },
     async (args) => {
-      const body: Record<string, string | undefined> = {
+      const body: Record<string, string | null | undefined> = {
         title: args.title,
         description: args.description,
         priority: args.priority,
@@ -442,6 +578,9 @@ export function registerMcpTools(
       if (args.startDate !== undefined) body.startDate = args.startDate;
       if (args.dueDate !== undefined) body.dueDate = args.dueDate;
       if (args.userId !== undefined) body.userId = args.userId;
+      if (args.milestoneId !== undefined) {
+        body.milestoneId = args.milestoneId;
+      }
       return run(() =>
         client.json(`/api/task/${encodeURIComponent(args.projectId)}`, {
           method: "POST",
@@ -467,6 +606,7 @@ export function registerMcpTools(
         startDate: nullableOptionalIsoDateTimeSchema,
         dueDate: nullableOptionalIsoDateTimeSchema,
         userId: nullableOptionalNonEmptyString,
+        milestoneId: nullableOptionalNonEmptyString,
       }),
     },
     async (args) => {
@@ -483,6 +623,25 @@ export function registerMcpTools(
         });
       });
     },
+  );
+
+  registerTool(
+    "update_task_milestone",
+    {
+      description:
+        "Set or clear a task's milestone. The milestone must belong to the task's project; null clears it.",
+      inputSchema: z.object({
+        taskId: nonEmptyString,
+        milestoneId: nonEmptyString.nullable(),
+      }),
+    },
+    async (args) =>
+      run(() =>
+        client.json(`/api/task/milestone/${encodeURIComponent(args.taskId)}`, {
+          method: "PUT",
+          body: JSON.stringify({ milestoneId: args.milestoneId }),
+        }),
+      ),
   );
 
   registerTool(

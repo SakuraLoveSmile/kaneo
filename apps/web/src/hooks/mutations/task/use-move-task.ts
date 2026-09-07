@@ -21,6 +21,21 @@ export function useMoveTask() {
         queryKey: ["tasks", result.destinationProjectId],
       });
       queryClient.invalidateQueries({
+        queryKey: ["milestones", result.sourceProjectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["milestone", result.sourceProjectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["milestone-tasks", result.sourceProjectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["milestone-task-options", result.sourceProjectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["milestone-task-options", result.destinationProjectId],
+      });
+      queryClient.invalidateQueries({
         queryKey: ["projects"],
       });
       queryClient.invalidateQueries({

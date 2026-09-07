@@ -4,6 +4,7 @@ import {
   CalendarIcon,
   Check,
   FolderKanban,
+  Milestone as MilestoneIcon,
   Plus,
   Search,
   Tag,
@@ -42,6 +43,7 @@ import useCreateTask from "@/hooks/mutations/task/use-create-task";
 import { useDeleteTask } from "@/hooks/mutations/task/use-delete-task";
 import { useUpdateTask } from "@/hooks/mutations/task/use-update-task";
 import useGetLabelsByWorkspace from "@/hooks/queries/label/use-get-labels-by-workspace";
+import useGetMilestones from "@/hooks/queries/milestone/use-get-milestones";
 import useGetProjects from "@/hooks/queries/project/use-get-projects";
 import useActiveWorkspace from "@/hooks/queries/workspace/use-active-workspace";
 import { useGetActiveWorkspaceUsers } from "@/hooks/queries/workspace-users/use-get-active-workspace-users";
@@ -59,6 +61,7 @@ type CreateTaskModalProps = {
   onClose: () => void;
   status?: string;
   projectId?: string;
+  initialMilestoneId?: string;
 };
 
 type Priority = "no-priority" | "low" | "medium" | "high" | "urgent";
@@ -98,6 +101,7 @@ function normalizeTask(
     dueDate: task.dueDate ?? null,
     position: task.position ?? 0,
     userId: task.userId ?? null,
+    milestoneId: task.milestoneId ?? null,
     assigneeId: task.assigneeId ?? task.userId ?? null,
     assigneeName: task.assigneeName ?? null,
     assigneeImage: task.assigneeImage ?? null,
@@ -111,9 +115,20 @@ function CreateTaskModal({
   onClose,
   status,
   projectId,
+  initialMilestoneId,
 }: CreateTaskModalProps) {
   const { t } = useTranslation();
   const { project, setProject } = useProjectStore();
+
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(
+    initialMilestoneId || null,
+  );
+
+  useEffect(() => {
+    if (open) {
+      setSelectedMilestoneId(initialMilestoneId || null);
+    }
+  }, [open, initialMilestoneId]);
 
   const labelColors = useMemo(
     () =>
@@ -210,6 +225,7 @@ function CreateTaskModal({
   const resolvedProject = explicitProjectId
     ? project
     : (workspaceProjects?.find((p) => p.id === resolvedProjectId) ?? null);
+  const { data: projectMilestones = [] } = useGetMilestones(resolvedProjectId);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const draftCreationPromiseRef = useRef<Promise<Task> | null>(null);
@@ -256,6 +272,7 @@ function CreateTaskModal({
     setSearchValue("");
     setSelectedColor("gray");
     setNewLabelName("");
+    setSelectedMilestoneId(initialMilestoneId || null);
     draftCreationPromiseRef.current = null;
     didSubmitRef.current = false;
     setDraftTask(null);
@@ -348,6 +365,7 @@ function CreateTaskModal({
       startDate: startDate ? startDate.toISOString() : undefined,
       dueDate: dueDate ? dueDate.toISOString() : undefined,
       status: draftStatus,
+      milestoneId: selectedMilestoneId || undefined,
     }).then((task) => normalizeTask(task));
 
     draftCreationPromiseRef.current = draftPromise;
@@ -375,6 +393,7 @@ function CreateTaskModal({
     dueDate,
     priority,
     resolvedProjectId,
+    selectedMilestoneId,
     title,
     t,
   ]);
@@ -411,6 +430,7 @@ function CreateTaskModal({
               startDate: startDate ? startDate.toISOString() : undefined,
               dueDate: dueDate ? dueDate.toISOString() : undefined,
               status: taskStatus,
+              milestoneId: selectedMilestoneId || undefined,
             }),
           );
 
@@ -701,9 +721,10 @@ function CreateTaskModal({
                           key={workspaceProject.id}
                           type="button"
                           className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent/50 text-left transition-colors h-8"
-                          onClick={() =>
-                            setSelectedProjectId(workspaceProject.id)
-                          }
+                          onClick={() => {
+                            setSelectedProjectId(workspaceProject.id);
+                            setSelectedMilestoneId(null);
+                          }}
                         >
                           <span className="text-sm truncate">
                             {workspaceProject.name}
@@ -1064,6 +1085,71 @@ function CreateTaskModal({
                       </div>
                     </div>
                   )}
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors border border-border hover:bg-accent/50",
+                      selectedMilestoneId
+                        ? "bg-accent/30 text-foreground"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    <MilestoneIcon className="w-3.5 h-3.5" />
+                    <span className="truncate max-w-[120px]">
+                      {selectedMilestoneId
+                        ? projectMilestones.find(
+                            (m) => m.id === selectedMilestoneId,
+                          )?.name ||
+                          t("roadmap:milestone", { defaultValue: "Milestone" })
+                        : t("roadmap:milestone", { defaultValue: "Milestone" })}
+                    </span>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-1" align="start">
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      className={cn(
+                        "w-full flex items-center justify-between px-2 py-1.5 text-xs rounded-sm hover:bg-accent text-left transition-colors",
+                        !selectedMilestoneId && "bg-accent/50 font-medium",
+                      )}
+                      onClick={() => setSelectedMilestoneId(null)}
+                    >
+                      <span className="text-muted-foreground">
+                        {t("roadmap:noMilestone", {
+                          defaultValue: "No milestone",
+                        })}
+                      </span>
+                      {!selectedMilestoneId && <Check className="size-3.5" />}
+                    </button>
+                    {projectMilestones.map((m) => {
+                      const isSelected = m.id === selectedMilestoneId;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className={cn(
+                            "w-full flex items-center justify-between gap-1.5 px-2 py-1.5 text-xs rounded-sm hover:bg-accent text-left transition-colors",
+                            isSelected && "bg-accent/50 font-medium",
+                          )}
+                          onClick={() => setSelectedMilestoneId(m.id)}
+                        >
+                          <span className="truncate flex-1">{m.name}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase shrink-0">
+                            {m.status}
+                          </span>
+                          {isSelected && (
+                            <Check className="size-3.5 text-primary shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </PopoverContent>
               </Popover>
             </div>

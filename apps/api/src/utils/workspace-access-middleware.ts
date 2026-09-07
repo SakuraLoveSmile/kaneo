@@ -18,6 +18,7 @@ type WorkspaceIdSource =
         | "activity"
         | "comment"
         | "column"
+        | "milestone"
         | "workflowRule";
       idKey: string;
     }
@@ -137,6 +138,7 @@ async function lookupWorkspaceId(
     | "activity"
     | "comment"
     | "column"
+    | "milestone"
     | "workflowRule",
   id: string,
 ): Promise<string | null> {
@@ -252,6 +254,21 @@ async function lookupWorkspaceId(
         return column?.workspaceId || null;
       }
 
+      case "milestone": {
+        const [milestone] = await db
+          .select({
+            workspaceId: schema.projectTable.workspaceId,
+          })
+          .from(schema.milestoneTable)
+          .innerJoin(
+            schema.projectTable,
+            eq(schema.milestoneTable.projectId, schema.projectTable.id),
+          )
+          .where(eq(schema.milestoneTable.id, id))
+          .limit(1);
+        return milestone?.workspaceId || null;
+      }
+
       case "workflowRule": {
         const [workflowRule] = await db
           .select({
@@ -348,6 +365,14 @@ export const workspaceAccess = {
     workspaceAccessMiddleware({
       sources: [
         { type: "lookup", resource: "column", idKey },
+        { type: "query", key: "workspaceId" },
+      ],
+    }),
+
+  fromMilestone: (idKey = "id") =>
+    workspaceAccessMiddleware({
+      sources: [
+        { type: "lookup", resource: "milestone", idKey },
         { type: "query", key: "workspaceId" },
       ],
     }),

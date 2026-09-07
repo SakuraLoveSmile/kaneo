@@ -19,7 +19,8 @@ export const listTasksQuery = z.object({
   status: z.string().optional(),
   priority: z.string().optional(),
   assigneeId: z.string().optional(),
-  // Number("abc") is NaN, which used to reach the limit/offset clause unchecked.
+  milestoneId: z.string().trim().min(1).optional(),
+  search: z.string().trim().max(200).optional(),
   page: pagingNumber(1, 1_000_000).optional(),
   limit: pagingNumber(1, 200).optional(),
   sortBy: z
@@ -55,6 +56,11 @@ export const createTaskBody = z.object({
   priority,
   status: z.string().openapi({ description: "The target column's slug." }),
   userId: z.string().optional().openapi({ description: "Assignee, if any." }),
+  milestoneId: z
+    .string()
+    .nullable()
+    .optional()
+    .openapi({ description: "Milestone, if any." }),
 });
 
 export const updateTaskBody = z.object({
@@ -67,6 +73,11 @@ export const updateTaskBody = z.object({
   projectId: z.string(),
   position: z.number(),
   userId: z.string().optional(),
+  milestoneId: z.string().nullable().optional(),
+});
+
+export const updateTaskMilestoneBody = z.object({
+  milestoneId: z.string().nullable(),
 });
 
 export const moveTaskBody = z.object({

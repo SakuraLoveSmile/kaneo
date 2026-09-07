@@ -8,6 +8,7 @@ import {
   taskTable,
 } from "../../database/schema";
 import { publishEvent } from "../../events";
+import { lockMilestonesInProject } from "../../milestone/validate-milestone";
 import { claimTaskNumber } from "./claim-task-numbers";
 
 type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -23,8 +24,9 @@ async function resolveDestinationStatus(
   destinationProjectId: string,
   currentStatus: string,
   requestedStatus?: string,
+  dbOrTx: DbOrTx = db,
 ) {
-  const destinationColumns = await db
+  const destinationColumns = await dbOrTx
     .select({
       id: columnTable.id,
       slug: columnTable.slug,
@@ -84,56 +86,88 @@ async function moveTask({
   destinationProjectId,
   destinationStatus,
   currentUserId,
+  workspaceId,
 }: {
   taskId: string;
   destinationProjectId: string;
   destinationStatus?: string;
   currentUserId: string;
+  workspaceId?: string;
 }) {
-  const existingTask = await db.query.taskTable.findFirst({
-    where: eq(taskTable.id, taskId),
-  });
+  // This read only supplies the possible parent lock. The task is read again
+  // under a row lock before any project or workflow decision is made.
+  const [taskPreview] = await db
+    .select({
+      projectId: taskTable.projectId,
+      milestoneId: taskTable.milestoneId,
+    })
+    .from(taskTable)
+    .where(eq(taskTable.id, taskId))
+    .limit(1);
 
-  if (!existingTask) {
-    throw new HTTPException(404, {
-      message: "Task not found",
-    });
+  if (!taskPreview) {
+    throw new HTTPException(404, { message: "Task not found" });
   }
 
-  if (isSameProjectMove(existingTask.projectId, destinationProjectId)) {
-    throw new HTTPException(400, {
-      message: "Task is already in that project",
-    });
-  }
+  const result = await db.transaction(async (tx) => {
+    if (taskPreview.milestoneId) {
+      await lockMilestonesInProject(
+        tx,
+        [taskPreview.milestoneId],
+        taskPreview.projectId,
+      );
+    }
 
-  const [sourceProject, destinationProject] = await Promise.all([
-    db.query.projectTable.findFirst({
-      where: eq(projectTable.id, existingTask.projectId),
-    }),
-    db.query.projectTable.findFirst({
-      where: eq(projectTable.id, destinationProjectId),
-    }),
-  ]);
+    const [existingTask] = await tx
+      .select()
+      .from(taskTable)
+      .where(eq(taskTable.id, taskId))
+      .for("update");
 
-  if (!sourceProject || !destinationProject) {
-    throw new HTTPException(404, {
-      message: "Project not found",
-    });
-  }
+    if (!existingTask) {
+      throw new HTTPException(404, { message: "Task not found" });
+    }
 
-  if (sourceProject.workspaceId !== destinationProject.workspaceId) {
-    throw new HTTPException(400, {
-      message: "Tasks can only be moved within the same workspace",
-    });
-  }
+    const [sourceProject] = await tx
+      .select()
+      .from(projectTable)
+      .where(eq(projectTable.id, existingTask.projectId))
+      .limit(1);
+    const [destinationProject] = await tx
+      .select()
+      .from(projectTable)
+      .where(eq(projectTable.id, destinationProjectId))
+      .limit(1);
 
-  const resolvedColumn = await resolveDestinationStatus(
-    destinationProjectId,
-    existingTask.status,
-    destinationStatus,
-  );
+    if (!sourceProject || !destinationProject) {
+      throw new HTTPException(404, { message: "Project not found" });
+    }
 
-  const movedTask = await db.transaction(async (tx) => {
+    if (workspaceId && sourceProject.workspaceId !== workspaceId) {
+      throw new HTTPException(409, {
+        message: "The task's workspace changed before the move completed",
+      });
+    }
+
+    if (isSameProjectMove(existingTask.projectId, destinationProjectId)) {
+      throw new HTTPException(400, {
+        message: "Task is already in that project",
+      });
+    }
+
+    if (sourceProject.workspaceId !== destinationProject.workspaceId) {
+      throw new HTTPException(400, {
+        message: "Tasks can only be moved within the same workspace",
+      });
+    }
+
+    const resolvedColumn = await resolveDestinationStatus(
+      destinationProjectId,
+      existingTask.status,
+      destinationStatus,
+      tx,
+    );
+
     const [nextTaskNumber, nextPosition] = await Promise.all([
       claimTaskNumber(destinationProjectId, tx),
       getNextTaskPosition(
@@ -150,6 +184,7 @@ async function moveTask({
         projectId: destinationProjectId,
         status: resolvedColumn.slug,
         columnId: resolvedColumn.id,
+        milestoneId: null,
         number: nextTaskNumber,
         position: nextPosition,
       })
@@ -167,8 +202,22 @@ async function moveTask({
       .set({ projectId: destinationProjectId })
       .where(eq(assetTable.taskId, taskId));
 
-    return updatedTask;
+    return {
+      movedTask: updatedTask,
+      sourceProject,
+      destinationProject,
+      resolvedColumn,
+      existingTask,
+    };
   });
+
+  const {
+    movedTask,
+    sourceProject,
+    destinationProject,
+    resolvedColumn,
+    existingTask,
+  } = result;
 
   await publishEvent("task.moved", {
     taskId,

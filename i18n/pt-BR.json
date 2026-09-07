@@ -2165,5 +2165,119 @@
 		"branding": {
 			"poweredBy": "Desenvolvido por"
 		}
+	},
+	"roadmap": {
+		"createFirstMilestone": "Create your first milestone to start tracking goals.",
+		"createMilestone": "New milestone",
+		"createMilestoneDesc": "Plan major project goals, deliverables, and timelines.",
+		"deleteConfirm": {
+			"desc": "Deleting this milestone will not delete associated tasks. Tasks will simply be unlinked and preserved in the project.",
+			"title": "Delete milestone?"
+		},
+		"deleteSuccess": "Milestone deleted. Associated tasks were preserved.",
+		"due": "Due",
+		"errors": {
+			"resourceUnavailable": "This milestone is no longer available or was deleted.",
+			"loadFailed": "Failed to load milestone",
+			"permissionDenied": "You don't have permission to view or edit this milestone.",
+			"projectMismatch": "This milestone belongs to another project.",
+			"projectMismatchDesc": "Editing, deleting, and linking tasks are disabled for milestones from another project.",
+			"tasksLoadFailed": "Failed to load linked tasks."
+		},
+		"fields": {
+			"clearDate": "Clear",
+			"description": "Description",
+			"descriptionPlaceholder": "Add details or goals for this milestone...",
+			"name": "Name",
+			"namePlaceholder": "e.g., v1.0 Launch, Beta Release",
+			"pickDate": "Pick date",
+			"schedule": "Schedule",
+			"startDate": "Start date",
+			"status": "Status",
+			"targetDate": "Target date",
+			"optional": "(optional)"
+		},
+		"form": {
+			"createSuccess": "Milestone created successfully",
+			"invalidDateRange": "Start date must be on or before target date",
+			"nameRequired": "Name is required",
+			"saveSuccess": "Milestone updated successfully",
+			"createButton": "Create milestone",
+			"creatingButton": "Creating...",
+			"invalidDescriptionLength": "Description must be 20,000 characters or less"
+		},
+		"linkedTasks": {
+			"createTask": "New task",
+			"noTasks": "No tasks yet",
+			"noTasksDesc": "Link existing tasks or create new ones to track progress.",
+			"subtitle": "Tasks contributing to this milestone",
+			"title": "Linked tasks"
+		},
+		"linkTask": {
+			"alreadyLinked": "Already linked to this milestone",
+			"button": "Link task",
+			"linkAction": "Link",
+			"linkSuccess": "Task linked to milestone",
+			"noTasksFound": "No tasks found",
+			"searchPlaceholder": "Search tasks...",
+			"switchAction": "Switch",
+			"switchSuccess": "Task association switched successfully",
+			"unlinkAction": "Unlink from milestone",
+			"loadError": "Failed to load tasks"
+		},
+		"loadErrorRetained": "Milestone (error loading)",
+		"milestone": "Milestone",
+		"milestoneDetails": "Milestone Details",
+		"milestones": "Milestones",
+		"noMilestone": "No milestone",
+		"noMilestonesFound": "No milestones found",
+		"noMilestonesInPeriod": "No milestones in this period",
+		"noMilestonesInProject": "No milestones in this project",
+		"overdue": "Overdue",
+		"progress": {
+			"allDone": "All tasks completed!",
+			"remaining_many": "{{count}} tasks remaining",
+			"remaining_one": "{{count}} task remaining",
+			"remaining_other": "{{count}} tasks remaining",
+			"tasksCompleted": "tasks completed",
+			"title": "Progress"
+		},
+		"scale": {
+			"month": "Month",
+			"quarter": "Quarter"
+		},
+		"scheduledCount": "scheduled",
+		"searchPlaceholder": "Filter milestones...",
+		"selectMilestone": "Select Milestone",
+		"starts": "Starts",
+		"status": {
+			"active": "In Progress",
+			"all": "All statuses",
+			"canceled": "Canceled",
+			"completed": "Completed",
+			"planned": "Planned"
+		},
+		"taskUnlinked": "Milestone removed from task",
+		"title": "Roadmap",
+		"today": "Today",
+		"tryAdjustingFilters": "Try adjusting your search or status filter.",
+		"unknownMilestone": "Another milestone",
+		"unscheduled": "Unscheduled Milestones",
+		"unscheduledCount": "unscheduled",
+		"views": {
+			"list": "List",
+			"timeline": "Timeline"
+		},
+		"conflict": {
+			"acceptRemote": "Adopt remote",
+			"desc": "Another window or user updated some fields. You can adopt remote values or keep your draft to overwrite upon save.",
+			"keepLocal": "Keep my edits",
+			"title": "Remote changes detected",
+			"unresolved": "Please resolve remote edit conflicts before saving."
+		},
+		"timeline": {
+			"due": "Due {{date}}",
+			"starts": "Starts {{date}}"
+		}
 	}
 }
