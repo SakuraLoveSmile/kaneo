@@ -1,3 +1,4 @@
+import { publishEvent } from "../events";
 import {
   apiRouter,
   createRoute,
@@ -155,24 +156,35 @@ const column = apiRouter()
   .openapi(createColumnRoute, async (c) => {
     const { projectId } = c.req.valid("param");
     const { name, icon, color, isFinal } = c.req.valid("json");
-    return c.json(
-      await createColumn({ projectId, name, icon, color, isFinal }),
-      200,
-    );
+    const created = await createColumn({
+      projectId,
+      name,
+      icon,
+      color,
+      isFinal,
+    });
+    await publishEvent("workflow.updated", { projectId: created.projectId });
+    return c.json(created, 200);
   })
   .openapi(reorderColumnsRoute, async (c) => {
     const { projectId } = c.req.valid("param");
     const { columns } = c.req.valid("json");
-    return c.json(await reorderColumns(projectId, columns), 200);
+    const updated = await reorderColumns(projectId, columns);
+    await publishEvent("workflow.updated", { projectId });
+    return c.json(updated, 200);
   })
-  .openapi(updateColumnRoute, async (c) =>
-    c.json(
-      await updateColumn(c.req.valid("param").id, c.req.valid("json")),
-      200,
-    ),
-  )
-  .openapi(deleteColumnRoute, async (c) =>
-    c.json(await deleteColumn(c.req.valid("param").id), 200),
-  );
+  .openapi(updateColumnRoute, async (c) => {
+    const updated = await updateColumn(
+      c.req.valid("param").id,
+      c.req.valid("json"),
+    );
+    await publishEvent("workflow.updated", { projectId: updated.projectId });
+    return c.json(updated, 200);
+  })
+  .openapi(deleteColumnRoute, async (c) => {
+    const deleted = await deleteColumn(c.req.valid("param").id);
+    await publishEvent("workflow.updated", { projectId: deleted.projectId });
+    return c.json(deleted, 200);
+  });
 
 export default column;

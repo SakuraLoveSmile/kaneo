@@ -100,6 +100,75 @@ describe("MCP tool catalog", () => {
     });
   });
 
+  it("exposes the roadmap tools and preserves explicit milestone nulls", async () => {
+    await call("list_milestones", { projectId: "project 1" });
+    expect(lastRequest().url).toBe(
+      "http://api.test/api/milestone/project/project%201",
+    );
+
+    await call("get_project_roadmap", { projectId: "project 1" });
+    expect(lastRequest().url).toBe(
+      "http://api.test/api/milestone/project/project%201",
+    );
+
+    await call("update_task_milestone", {
+      taskId: "task 1",
+      milestoneId: null,
+    });
+    expect(lastRequest()).toMatchObject({
+      url: "http://api.test/api/task/milestone/task%201",
+      method: "PUT",
+      body: { milestoneId: null },
+    });
+  });
+
+  it("validates milestone calendar dates and rejects non-zero timestamps", async () => {
+    await call("create_milestone", {
+      projectId: "project-1",
+      name: "Q3 Release",
+      startDate: "2026-09-06",
+      targetDate: "2026-09-06T00:00:00.000Z",
+    });
+    expect(lastRequest()).toMatchObject({
+      url: "http://api.test/api/milestone/project/project-1",
+      method: "POST",
+      body: {
+        name: "Q3 Release",
+        startDate: "2026-09-06",
+        targetDate: "2026-09-06T00:00:00.000Z",
+      },
+    });
+
+    const res = await call("create_milestone", {
+      projectId: "project-1",
+      name: "Q3 Release",
+      startDate: "2026-09-06T14:30:00.000Z",
+    });
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toContain(
+      "Expected a calendar date in YYYY-MM-DD format",
+    );
+  });
+
+  it("does not send a fetched milestone association on an unrelated task patch", async () => {
+    apiFetch
+      .mockResolvedValueOnce(
+        Response.json({
+          title: "Task",
+          description: "",
+          status: "to-do",
+          priority: "low",
+          projectId: "project-1",
+          position: 1,
+          milestoneId: "milestone-1",
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ id: "task-1" }));
+
+    await call("update_task", { taskId: "task-1", title: "Renamed" });
+    expect(lastRequest().body).not.toHaveProperty("milestoneId");
+  });
+
   it("assigns and unassigns a task", async () => {
     await call("update_task_assignee", { taskId: "t1", userId: "u1" });
     expect(lastRequest()).toMatchObject({

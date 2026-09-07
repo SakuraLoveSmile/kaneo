@@ -47,6 +47,16 @@ describe("registerTools", () => {
       expect.any(Object),
       expect.any(Function),
     );
+    expect(server.registerTool).toHaveBeenCalledWith(
+      "list_milestones",
+      expect.any(Object),
+      expect.any(Function),
+    );
+    expect(server.registerTool).toHaveBeenCalledWith(
+      "update_task_milestone",
+      expect.any(Object),
+      expect.any(Function),
+    );
   });
 
   it("builds the expected query string for list_tasks", async () => {
@@ -121,6 +131,37 @@ describe("registerTools", () => {
       }),
     );
     expect(result?.isError).toBe(false);
+  });
+
+  it("preserves an explicit null milestone in update_task", async () => {
+    const { server, tools } = createServerMock();
+    const client = {
+      json: vi
+        .fn()
+        .mockResolvedValueOnce({
+          title: "Task",
+          description: "",
+          status: "to-do",
+          priority: "low",
+          projectId: "project-1",
+          position: 1,
+          milestoneId: "milestone-1",
+        })
+        .mockResolvedValueOnce({ id: "task-1", milestoneId: null }),
+    };
+
+    registerTools(server as never, { client: client as never });
+
+    await tools.get("update_task")?.handler({
+      taskId: "task-1",
+      milestoneId: null,
+    });
+
+    const putCall = client.json.mock.calls[1];
+    const putBody = JSON.parse(
+      String((putCall?.[1] as { body?: string })?.body ?? "{}"),
+    );
+    expect(putBody.milestoneId).toBeNull();
   });
 
   it("fetches the current project and sends a full body for update_project", async () => {
@@ -319,5 +360,32 @@ describe("registerTools", () => {
     expect(client.json).toHaveBeenCalledWith("/api/label/label-1", {
       method: "GET",
     });
+  });
+
+  it("validates milestone calendar dates and rejects non-zero timestamps", () => {
+    const { server, tools } = createServerMock();
+    const client = { json: vi.fn() };
+
+    registerTools(server as never, { client: client as never });
+
+    const schema = tools.get("create_milestone")?.config.inputSchema;
+    expect(schema).toBeDefined();
+
+    expect(() =>
+      schema?.parse({
+        projectId: "p-1",
+        name: "M1",
+        startDate: "2026-09-06",
+        targetDate: "2026-09-06T00:00:00.000Z",
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      schema?.parse({
+        projectId: "p-1",
+        name: "M1",
+        startDate: "2026-09-06T14:30:00.000Z",
+      }),
+    ).toThrow();
   });
 });

@@ -3,6 +3,8 @@ import { HTTPException } from "hono/http-exception";
 import db from "../database";
 import { columnTable } from "../database/schema";
 
+type DbOrTx = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export const VALID_PRIORITIES = [
   "no-priority",
   "low",
@@ -23,8 +25,9 @@ export function assertValidPriority(priority: string): void {
 
 export async function getValidTaskStatuses(
   projectId: string,
+  dbOrTx: DbOrTx = db,
 ): Promise<string[]> {
-  const columns = await db
+  const columns = await dbOrTx
     .select({ slug: columnTable.slug })
     .from(columnTable)
     .where(eq(columnTable.projectId, projectId))
@@ -36,8 +39,9 @@ export async function getValidTaskStatuses(
 export async function assertValidTaskStatus(
   status: string,
   projectId: string,
+  dbOrTx: DbOrTx = db,
 ): Promise<void> {
-  const validStatuses = await getValidTaskStatuses(projectId);
+  const validStatuses = await getValidTaskStatuses(projectId, dbOrTx);
 
   if (!validStatuses.includes(status)) {
     throw new HTTPException(400, {

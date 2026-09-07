@@ -11,6 +11,7 @@ import {
   integrationTable,
   invitationTable,
   labelTable,
+  milestoneTable,
   notificationTable,
   projectTable,
   sessionTable,
@@ -103,6 +104,7 @@ export const projectTableRelations = relations(
     tasks: many(taskTable),
     assets: many(assetTable),
     columns: many(columnTable),
+    milestones: many(milestoneTable),
     workflowRules: many(workflowRuleTable),
     githubIntegration: many(githubIntegrationTable),
     integrations: many(integrationTable),
@@ -133,6 +135,17 @@ export const workflowRuleTableRelations = relations(
   }),
 );
 
+export const milestoneTableRelations = relations(
+  milestoneTable,
+  ({ one, many }) => ({
+    project: one(projectTable, {
+      fields: [milestoneTable.projectId],
+      references: [projectTable.id],
+    }),
+    tasks: many(taskTable),
+  }),
+);
+
 export const taskTableRelations = relations(taskTable, ({ one, many }) => ({
   project: one(projectTable, {
     fields: [taskTable.projectId],
@@ -145,6 +158,10 @@ export const taskTableRelations = relations(taskTable, ({ one, many }) => ({
   column: one(columnTable, {
     fields: [taskTable.columnId],
     references: [columnTable.id],
+  }),
+  milestone: one(milestoneTable, {
+    fields: [taskTable.milestoneId],
+    references: [milestoneTable.id],
   }),
   timeEntries: many(timeEntryTable),
   activities: many(activityTable),

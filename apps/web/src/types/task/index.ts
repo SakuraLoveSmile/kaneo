@@ -33,6 +33,7 @@ type Task = {
   assigneeImage?: string | null;
   projectId: string;
   columnId?: string | null;
+  milestoneId?: string | null;
   labels?: TaskLabel[];
   externalLinks?: TaskExternalLink[];
 };

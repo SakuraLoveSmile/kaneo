@@ -111,6 +111,7 @@ function makeTask(overrides: Partial<Task>): Task {
     assigneeId: null,
     assigneeName: null,
     projectId: "project-1",
+    milestoneId: null,
     ...overrides,
   };
 }

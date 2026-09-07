@@ -1,0 +1,21 @@
+{
+  "extends": "../../packages/typescript-config/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "paths": {
+      "vitest": ["./node_modules/vitest", "../../node_modules/vitest"]
+    }
+  },
+  "include": [
+    "scripts/**/*"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

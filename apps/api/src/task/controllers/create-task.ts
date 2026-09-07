@@ -4,6 +4,10 @@ import db from "../../database";
 import { columnTable, taskTable, userTable } from "../../database/schema";
 import { publishEvent } from "../../events";
 import {
+  lockMilestonesInProject,
+  normalizeMilestoneId,
+} from "../../milestone/validate-milestone";
+import {
   assertAssignableUser,
   getProjectWorkspaceId,
 } from "../../utils/assert-assignable-user";
@@ -20,6 +24,7 @@ async function createTask({
   dueDate,
   description,
   priority,
+  milestoneId,
 }: {
   projectId: string;
   currentUserId: string;
@@ -30,13 +35,13 @@ async function createTask({
   dueDate?: Date;
   description?: string;
   priority?: string;
+  milestoneId?: string | null;
 }) {
   const resolvedStatus = status || "to-do";
   const resolvedPriority = priority || "no-priority";
 
   const normalizedUserId = userId?.trim() || undefined;
-
-  await assertValidTaskStatus(resolvedStatus, projectId);
+  const normalizedMilestoneId = normalizeMilestoneId(milestoneId);
 
   let assignee: { name: string } | undefined;
 
@@ -52,28 +57,36 @@ async function createTask({
       .where(eq(userTable.id, normalizedUserId));
   }
 
-  const column = await db.query.columnTable.findFirst({
-    where: and(
-      eq(columnTable.projectId, projectId),
-      eq(columnTable.slug, resolvedStatus),
-    ),
-  });
-
-  const [maxPositionResult] = await db
-    .select({ maxPosition: max(taskTable.position) })
-    .from(taskTable)
-    .where(
-      and(
-        eq(taskTable.projectId, projectId),
-        column?.id
-          ? eq(taskTable.columnId, column.id)
-          : eq(taskTable.status, resolvedStatus),
-      ),
-    );
-
-  const nextPosition = (maxPositionResult?.maxPosition ?? 0) + 1;
-
   const createdTask = await db.transaction(async (tx) => {
+    if (normalizedMilestoneId) {
+      await lockMilestonesInProject(tx, [normalizedMilestoneId], projectId);
+    }
+
+    await assertValidTaskStatus(resolvedStatus, projectId, tx);
+
+    const [column] = await tx
+      .select()
+      .from(columnTable)
+      .where(
+        and(
+          eq(columnTable.projectId, projectId),
+          eq(columnTable.slug, resolvedStatus),
+        ),
+      )
+      .limit(1);
+
+    const [maxPositionResult] = await tx
+      .select({ maxPosition: max(taskTable.position) })
+      .from(taskTable)
+      .where(
+        and(
+          eq(taskTable.projectId, projectId),
+          column?.id
+            ? eq(taskTable.columnId, column.id)
+            : eq(taskTable.status, resolvedStatus),
+        ),
+      );
+
     const taskNumber = await claimTaskNumber(projectId, tx);
 
     const [task] = await tx
@@ -81,6 +94,7 @@ async function createTask({
       .values({
         projectId,
         userId: normalizedUserId ?? null,
+        milestoneId: normalizedMilestoneId ?? null,
         title: title || "",
         status: resolvedStatus,
         columnId: column?.id ?? null,
@@ -89,7 +103,7 @@ async function createTask({
         description: description || "",
         priority: resolvedPriority,
         number: taskNumber,
-        position: nextPosition,
+        position: (maxPositionResult?.maxPosition ?? 0) + 1,
       })
       .returning();
 

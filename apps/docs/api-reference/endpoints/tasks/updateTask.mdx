@@ -3,3 +3,6 @@ title: updateTask
 description: Update all fields of a task
 openapi: 'PUT /task/{id}'
 ---
+
+When `milestoneId` is omitted, the existing task association is preserved. Send
+`null` explicitly to clear it; use `PUT /task/milestone/{id}` for an association-only update.

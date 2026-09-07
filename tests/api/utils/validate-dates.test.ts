@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   validateAndParseDate,
+  validateAndParseMilestoneDate,
   validateDateRange,
 } from "../../../apps/api/src/utils/validate-dates";
 
@@ -38,6 +39,77 @@ describe("validateAndParseDate", () => {
   it("should throw on a gibberish string", () => {
     expect(() => validateAndParseDate("abc123xyz", "dueDate")).toThrowError(
       /Invalid dueDate/,
+    );
+  });
+
+  it("should reject an impossible calendar date", () => {
+    expect(() => validateAndParseDate("2026-02-30", "startDate")).toThrowError(
+      /Invalid startDate/,
+    );
+  });
+
+  it("should keep accepting a timezone-less task datetime for compatibility", () => {
+    expect(() =>
+      validateAndParseDate("2026-08-01T00:00:00", "startDate"),
+    ).not.toThrow();
+  });
+
+  it("should reject an ISO datetime without a timezone for milestones", () => {
+    expect(() =>
+      validateAndParseMilestoneDate("2026-08-01T00:00:00", "startDate"),
+    ).toThrowError(/Invalid startDate/);
+  });
+
+  it("should accept date-only YYYY-MM-DD for milestones and normalize to UTC midnight", () => {
+    const result = validateAndParseMilestoneDate("2026-08-01", "startDate");
+    expect(result).toBeInstanceOf(Date);
+    expect(result.toISOString()).toBe("2026-08-01T00:00:00.000Z");
+  });
+
+  it("should accept UTC midnight ISO with or without milliseconds for milestones", () => {
+    const withMs = validateAndParseMilestoneDate(
+      "2026-08-01T00:00:00.000Z",
+      "targetDate",
+    );
+    expect(withMs.toISOString()).toBe("2026-08-01T00:00:00.000Z");
+
+    const withoutMs = validateAndParseMilestoneDate(
+      "2026-08-01T00:00:00Z",
+      "targetDate",
+    );
+    expect(withoutMs.toISOString()).toBe("2026-08-01T00:00:00.000Z");
+  });
+
+  it("should strictly reject non-zero time timestamps for milestone calendar dates", () => {
+    expect(() =>
+      validateAndParseMilestoneDate("2026-08-01T14:30:00.000Z", "startDate"),
+    ).toThrowError(
+      /Milestone startDate must be a calendar date in YYYY-MM-DD format/,
+    );
+    expect(() =>
+      validateAndParseMilestoneDate("2026-09-05T16:00:00.000Z", "targetDate"),
+    ).toThrowError(
+      /Milestone targetDate must be a calendar date in YYYY-MM-DD format/,
+    );
+  });
+
+  it("should strictly reject non-UTC timezone offsets for milestone calendar dates", () => {
+    expect(() =>
+      validateAndParseMilestoneDate("2026-08-01T00:00:00+08:00", "startDate"),
+    ).toThrowError(
+      /Milestone startDate must be a calendar date in YYYY-MM-DD format/,
+    );
+  });
+
+  it("should reject impossible calendar dates and garbage strings for milestones", () => {
+    expect(() =>
+      validateAndParseMilestoneDate("2026-02-30", "startDate"),
+    ).toThrowError(/Invalid startDate/);
+    expect(() =>
+      validateAndParseMilestoneDate("2026-08-01extra", "targetDate"),
+    ).toThrowError(/Invalid targetDate/);
+    expect(() => validateAndParseMilestoneDate("", "targetDate")).toThrowError(
+      /targetDate cannot be an empty string/,
     );
   });
 });

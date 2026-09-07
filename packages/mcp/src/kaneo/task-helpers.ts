@@ -16,6 +16,7 @@ export type TaskUpdatePatch = {
   startDate?: string | null;
   dueDate?: string | null;
   userId?: string | null;
+  milestoneId?: string | null;
 };
 
 /**
@@ -24,7 +25,7 @@ export type TaskUpdatePatch = {
 export function buildFullTaskUpdateBody(
   existing: Record<string, unknown>,
   patch: TaskUpdatePatch,
-): Record<string, string | number | undefined> {
+): Record<string, string | number | null | undefined> {
   const positionRaw = patch.position ?? existing.position;
   const position =
     typeof positionRaw === "number"
@@ -94,7 +95,7 @@ export function buildFullTaskUpdateBody(
     patch.dueDate !== undefined ? patch.dueDate : existing.dueDate,
   );
 
-  const body: Record<string, string | number | undefined> = {
+  const body: Record<string, string | number | null | undefined> = {
     title,
     description,
     status,
@@ -111,6 +112,9 @@ export function buildFullTaskUpdateBody(
   }
   if (userId !== undefined) {
     body.userId = userId;
+  }
+  if (patch.milestoneId !== undefined) {
+    body.milestoneId = patch.milestoneId;
   }
 
   return body;

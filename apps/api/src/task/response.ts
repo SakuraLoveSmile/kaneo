@@ -16,6 +16,10 @@ export const taskSchema = z
       .string()
       .nullable()
       .openapi({ description: "The assignee, if any." }),
+    milestoneId: z
+      .string()
+      .nullable()
+      .openapi({ description: "The milestone, if any." }),
     title: z.string(),
     description: z.string().nullable(),
     status: z.string().openapi({
@@ -70,6 +74,7 @@ export const boardTaskSchema = z
     position: z.number().nullable(),
     createdAt: responseTimestamp,
     userId: z.string().nullable(),
+    milestoneId: z.string().nullable(),
     assigneeName: z.string().nullable(),
     assigneeId: z.string().nullable(),
     assigneeImage: z.string().nullable(),

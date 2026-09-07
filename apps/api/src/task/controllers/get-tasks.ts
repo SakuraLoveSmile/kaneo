@@ -4,6 +4,7 @@ import {
   desc,
   eq,
   gte,
+  ilike,
   inArray,
   lte,
   type SQL,
@@ -25,8 +26,10 @@ type GetTasksOptions = {
   dueAfter?: string;
   dueBefore?: string;
   limit?: number;
+  milestoneId?: string;
   page?: number;
   priority?: string;
+  search?: string;
   sortBy?:
     | "createdAt"
     | "priority"
@@ -93,12 +96,24 @@ async function getTasks(projectId: string, options: GetTasksOptions = {}) {
     conditions.push(eq(taskTable.userId, options.assigneeId));
   }
 
+  if (options.milestoneId) {
+    conditions.push(eq(taskTable.milestoneId, options.milestoneId));
+  }
+
   if (options.dueBefore) {
     conditions.push(lte(taskTable.dueDate, new Date(options.dueBefore)));
   }
 
   if (options.dueAfter) {
     conditions.push(gte(taskTable.dueDate, new Date(options.dueAfter)));
+  }
+
+  if (options.search) {
+    const trimmed = options.search.trim();
+    if (trimmed) {
+      const escaped = trimmed.replace(/[%_\\]/g, "\\$&");
+      conditions.push(ilike(taskTable.title, `%${escaped}%`));
+    }
   }
 
   const whereClause = and(...conditions);
@@ -132,6 +147,7 @@ async function getTasks(projectId: string, options: GetTasksOptions = {}) {
     position: taskTable.position,
     createdAt: taskTable.createdAt,
     userId: taskTable.userId,
+    milestoneId: taskTable.milestoneId,
     assigneeName: userTable.name,
     assigneeId: userTable.id,
     assigneeImage: userTable.image,
@@ -144,7 +160,7 @@ async function getTasks(projectId: string, options: GetTasksOptions = {}) {
     .leftJoin(userTable, eq(taskTable.userId, userTable.id))
     .leftJoin(projectTable, eq(taskTable.projectId, projectTable.id))
     .where(whereClause)
-    .orderBy(orderByClause);
+    .orderBy(orderByClause, asc(taskTable.id));
 
   const paginatedTasks = usePagination
     ? await query.limit(pageSize).offset(offset)

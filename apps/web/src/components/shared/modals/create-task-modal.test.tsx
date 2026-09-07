@@ -45,6 +45,11 @@ vi.mock("@/hooks/queries/label/use-get-labels-by-workspace", () => ({
   default: () => ({ data: [] }),
 }));
 
+vi.mock("@/hooks/queries/milestone/use-get-milestones", () => ({
+  default: () => ({ data: [] }),
+  useGetMilestones: () => ({ data: [] }),
+}));
+
 vi.mock("@/hooks/queries/workspace/use-active-workspace", () => ({
   default: () => ({ data: { id: "workspace-1", name: "WS" } }),
 }));

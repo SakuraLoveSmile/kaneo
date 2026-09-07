@@ -22,5 +22,23 @@ describe("buildFullTaskUpdateBody", () => {
     expect(body.status).toBe("done");
     expect(body.title).toBe("T");
     expect(body.position).toBe(1);
+    expect(body).not.toHaveProperty("milestoneId");
+  });
+
+  it("keeps an explicit null milestone instead of dropping it", () => {
+    const body = buildFullTaskUpdateBody(
+      {
+        title: "T",
+        description: "D",
+        status: "open",
+        priority: "low",
+        projectId: "p1",
+        position: 1,
+        milestoneId: "m1",
+      },
+      { milestoneId: null },
+    );
+
+    expect(body.milestoneId).toBeNull();
   });
 });
