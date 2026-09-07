@@ -59,6 +59,9 @@ vi.mock("../../apps/api/src/mcp/oauth-store", () => {
       if (row.expiresAt.getTime() < Date.now()) return null;
       return row.payload;
     },
+    deleteState: async (kind: string, key: string) => {
+      rows.delete(keyOf(kind, key));
+    },
     enforceStateCap: async () => {},
     deleteExpiredStates: async () => {
       const now = Date.now();
@@ -91,7 +94,7 @@ async function registerClient(redirectUri: string) {
       redirect_uris: [redirectUri],
     }),
   });
-  expect(response.status).toBe(200);
+  expect(response.status).toBe(201);
   return (await response.json()) as { client_id: string };
 }
 
@@ -174,7 +177,7 @@ describe("MCP OAuth security", () => {
     const authorizeUrl = buildAuthorizeUrl(
       client.client_id,
       "https://attacker.example/collect",
-      "verifier-for-redirect-check",
+      "verifier-for-redirect-check-valid-length-43-chars",
     );
 
     const response = await mcpRoutes.request(authorizeUrl.toString(), {
@@ -188,7 +191,7 @@ describe("MCP OAuth security", () => {
 
   it("requires explicit same-origin approval before issuing a code", async () => {
     const redirectUri = "https://client.example/callback";
-    const verifier = "attacker-known-verifier-1234567890";
+    const verifier = "attacker-known-verifier-1234567890-valid-length-43";
     const client = await registerClient(redirectUri);
     const authorizeUrl = buildAuthorizeUrl(
       client.client_id,
@@ -292,7 +295,7 @@ describe("MCP OAuth security", () => {
     const callback = await decideAuthorization({
       clientId: client.client_id,
       redirectUri,
-      verifier: "empty-state-verifier",
+      verifier: "empty-state-verifier-valid-length-43-characters-long",
       approved: false,
       state: "",
     });
@@ -304,7 +307,7 @@ describe("MCP OAuth security", () => {
 
   it("consumes an authorization code after a failed redemption attempt", async () => {
     const redirectUri = "https://client.example/single-use";
-    const verifier = "single-use-verifier";
+    const verifier = "single-use-verifier-valid-length-43-characters-long";
     const client = await registerClient(redirectUri);
     const callback = await decideAuthorization({
       clientId: client.client_id,
@@ -327,7 +330,10 @@ describe("MCP OAuth security", () => {
         }),
       });
 
-    expect((await redeem("incorrect-verifier")).status).toBe(400);
+    expect(
+      (await redeem("incorrect-verifier-valid-length-43-characters-long"))
+        .status,
+    ).toBe(400);
     expect((await redeem(verifier)).status).toBe(400);
   });
 

@@ -1,27 +1,31 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { createId } from "@paralleldrive/cuid2";
+import { eq } from "drizzle-orm";
 import db from "../database";
 import { sessionTable } from "../database/schema";
 import {
   consumeState,
   deleteExpiredStates,
+  deleteState,
   enforceStateCap,
   getState,
   putState,
 } from "./oauth-store";
 
-type RegisteredClient = {
+export type RegisteredClient = {
   clientId: string;
   redirectUris: string[];
   clientName?: string;
+  applicationType?: "web" | "native";
   issuedAt: number;
 };
 
-type AuthCode = {
+export type AuthCode = {
   clientId: string;
   userId: string;
   codeChallenge: string;
   redirectUri: string;
+  resource?: string;
 };
 
 export type AuthorizationRequest = {
@@ -29,14 +33,38 @@ export type AuthorizationRequest = {
   codeChallenge: string;
   redirectUri: string;
   state?: string;
+  resource?: string;
 };
 
-// Clients re-register on invalid_client, so the TTL only bounds table growth.
-const clientTtlMs = 30 * 24 * 60 * 60 * 1000;
+export type McpTokenRecord = {
+  token: string;
+  clientId: string;
+  userId: string;
+  resource: string;
+  expiresAt: string;
+  createdAt: string;
+  revokedAt?: string | null;
+};
+
+// Clients are long-lived and reused across sessions/users (e.g. by ChatGPT).
+// Set far-future TTL (10 years) and bound table growth with enforceStateCap.
+const clientTtlMs = 10 * 365 * 24 * 60 * 60 * 1000;
 const codeTtlMs = 5 * 60 * 1000;
 const requestTtlMs = 10 * 60 * 1000;
-// Same bound the in-memory store enforced; authorize is reachable without a session.
+// Bounds table growth; authorize is reachable without a session.
 const maxAuthorizationRequests = 10_000;
+const maxRegisteredClients = 10_000;
+
+export function normalizeResourceUrl(url: string): string {
+  return url.trim().replace(/\/+$/, "");
+}
+
+export function getCanonicalMcpResource(baseUrl?: string): string {
+  const base = (baseUrl || process.env.KANEO_API_URL || "http://localhost:1337")
+    .replace(/\/api\/?$/, "")
+    .replace(/\/+$/, "");
+  return `${base}/api/mcp`;
+}
 
 export async function getClient(
   clientId: string,
@@ -47,12 +75,16 @@ export async function getClient(
 export async function registerClient(params: {
   redirectUris: string[];
   clientName?: string;
+  applicationType?: "web" | "native";
 }): Promise<RegisteredClient> {
+  await deleteExpiredStates();
+  await enforceStateCap("client", maxRegisteredClients);
   const clientId = randomUUID();
   const client: RegisteredClient = {
     clientId,
     redirectUris: [...params.redirectUris],
     clientName: params.clientName,
+    applicationType: params.applicationType,
     issuedAt: Math.floor(Date.now() / 1000),
   };
   await putState(
@@ -64,9 +96,20 @@ export async function registerClient(params: {
   return client;
 }
 
+export async function revokeClient(clientId: string): Promise<void> {
+  await deleteState("client", clientId);
+}
+
 export async function createAuthCode(params: AuthCode): Promise<string> {
   const code = randomUUID();
-  await putState("code", code, params, new Date(Date.now() + codeTtlMs));
+  const canonical = getCanonicalMcpResource();
+  const resource = params.resource || canonical;
+  await putState(
+    "code",
+    code,
+    { ...params, resource },
+    new Date(Date.now() + codeTtlMs),
+  );
   return code;
 }
 
@@ -76,10 +119,12 @@ export async function createAuthorizationRequest(
   await deleteExpiredStates();
   await enforceStateCap("request", maxAuthorizationRequests);
   const requestId = randomUUID();
+  const canonical = getCanonicalMcpResource();
+  const resource = params.resource || canonical;
   await putState(
     "request",
     requestId,
-    params,
+    { ...params, resource },
     new Date(Date.now() + requestTtlMs),
   );
   return requestId;
@@ -101,9 +146,19 @@ function base64url(buf: Buffer): string {
   return buf.toString("base64url");
 }
 
+const PKCE_VERIFIER_REGEX = /^[A-Za-z0-9\-._~]{43,128}$/;
+
+export function isValidCodeVerifier(verifier: string): boolean {
+  return PKCE_VERIFIER_REGEX.test(verifier);
+}
+
 function verifyPkce(codeVerifier: string, codeChallenge: string): boolean {
+  if (!isValidCodeVerifier(codeVerifier)) return false;
   const hash = createHash("sha256").update(codeVerifier).digest();
-  return base64url(hash) === codeChallenge;
+  const challengeBuf = Buffer.from(codeChallenge, "utf8");
+  const computedBuf = Buffer.from(base64url(hash), "utf8");
+  if (challengeBuf.length !== computedBuf.length) return false;
+  return timingSafeEqual(challengeBuf, computedBuf);
 }
 
 export async function exchangeCode(
@@ -111,25 +166,56 @@ export async function exchangeCode(
   clientId: string,
   codeVerifier: string,
   redirectUri: string,
+  resource?: string,
 ): Promise<{ accessToken: string; expiresIn: number } | null> {
   const stored = await consumeState<AuthCode>("code", code);
   if (!stored) return null;
 
   if (stored.clientId !== clientId) return null;
   if (stored.redirectUri !== redirectUri) return null;
+  const storedResource = stored.resource || getCanonicalMcpResource();
+  if (
+    resource &&
+    normalizeResourceUrl(resource) !== normalizeResourceUrl(storedResource)
+  ) {
+    return null;
+  }
   if (!verifyPkce(codeVerifier, stored.codeChallenge)) return null;
 
   const sessionToken = randomUUID();
   const expiresIn = 30 * 24 * 60 * 60;
+  const expiresAt = new Date(Date.now() + expiresIn * 1000);
+  const now = new Date();
 
   await db.insert(sessionTable).values({
     id: createId(),
     token: sessionToken,
     userId: stored.userId,
-    expiresAt: new Date(Date.now() + expiresIn * 1000),
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    expiresAt,
+    createdAt: now,
+    updatedAt: now,
   });
 
+  const mcpToken: McpTokenRecord = {
+    token: sessionToken,
+    clientId: stored.clientId,
+    userId: stored.userId,
+    resource: storedResource,
+    expiresAt: expiresAt.toISOString(),
+    createdAt: now.toISOString(),
+  };
+  await putState("token", sessionToken, mcpToken, expiresAt);
+
   return { accessToken: sessionToken, expiresIn };
+}
+
+export async function getMcpToken(
+  token: string,
+): Promise<McpTokenRecord | null> {
+  return getState<McpTokenRecord>("token", token);
+}
+
+export async function revokeMcpToken(token: string): Promise<void> {
+  await deleteState("token", token);
+  await db.delete(sessionTable).where(eq(sessionTable.token, token));
 }

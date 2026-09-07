@@ -30,20 +30,25 @@ const redirectUriSchema = z
 export const clientRegistrationSchema = z.object({
   redirect_uris: z.array(redirectUriSchema).min(1),
   client_name: z.string().max(100).optional(),
-  token_endpoint_auth_method: z.literal("none").optional(),
-  grant_types: z.tuple([z.literal("authorization_code")]).optional(),
-  response_types: z.tuple([z.literal("code")]).optional(),
+  token_endpoint_auth_method: z.string().optional(),
+  grant_types: z.array(z.string()).optional(),
+  response_types: z.array(z.string()).optional(),
+  application_type: z.enum(["web", "native"]).optional(),
 });
 
 export const authorizationQuerySchema = z.object({
   response_type: z.literal("code"),
-  client_id: z.string(),
+  client_id: z.string().min(1),
   redirect_uri: redirectUriSchema,
-  code_challenge: z.string().min(1).openapi({
-    description: "PKCE challenge; only S256 is accepted.",
-  }),
+  code_challenge: z
+    .string()
+    .regex(/^[A-Za-z0-9\-_]{43,128}$/, "Invalid code_challenge format")
+    .openapi({
+      description: "PKCE challenge; only S256 is accepted.",
+    }),
   code_challenge_method: z.literal("S256"),
   state: z.string().optional(),
+  resource: z.string().max(2048).optional(),
 });
 
 export const authorizationRequestParamSchema = z.object({
@@ -55,7 +60,10 @@ export const authorizationDecisionSchema = z.object({
 });
 
 export const oauthErrorSchema = z
-  .object({ error: z.string() })
+  .object({
+    error: z.string(),
+    error_description: z.string().optional(),
+  })
   .openapi("OAuthError");
 
 export const clientRegistrationResponseSchema = z
@@ -64,6 +72,7 @@ export const clientRegistrationResponseSchema = z
     client_id_issued_at: z.number(),
     redirect_uris: z.array(z.string()),
     client_name: z.string().optional(),
+    application_type: z.enum(["web", "native"]).optional(),
     token_endpoint_auth_method: z.literal("none"),
     grant_types: z.array(z.literal("authorization_code")),
     response_types: z.array(z.literal("code")),

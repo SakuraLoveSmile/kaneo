@@ -254,11 +254,31 @@ export function registerMcpTools(
   registerTool(
     "whoami",
     {
-      description: "Return the current Kaneo session and user.",
+      description: "Return the current authenticated user identity.",
       inputSchema: z.object({}),
     },
     async () =>
-      run(() => client.json("/api/auth/get-session", { method: "GET" })),
+      run(async () => {
+        const res = await client.json<{
+          user?: {
+            id?: string;
+            name?: string;
+            email?: string;
+            image?: string | null;
+          };
+        }>("/api/auth/get-session", { method: "GET" });
+
+        return {
+          user: res?.user
+            ? {
+                id: res.user.id,
+                name: res.user.name,
+                email: res.user.email,
+                image: res.user.image ?? null,
+              }
+            : null,
+        };
+      }),
   );
 
   registerTool(

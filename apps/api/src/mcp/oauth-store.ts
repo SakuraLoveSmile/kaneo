@@ -2,7 +2,7 @@ import { and, count, desc, eq, lt, notInArray } from "drizzle-orm";
 import db from "../database";
 import { mcpOauthStateTable } from "../database/schema";
 
-export type OauthStateKind = "client" | "code" | "request";
+export type OauthStateKind = "client" | "code" | "request" | "token";
 
 export async function putState(
   kind: OauthStateKind,
@@ -45,6 +45,17 @@ export async function consumeState<T>(
   if (!row) return null;
   if (row.expiresAt.getTime() < Date.now()) return null;
   return row.payload as T;
+}
+
+export async function deleteState(
+  kind: OauthStateKind,
+  key: string,
+): Promise<void> {
+  await db
+    .delete(mcpOauthStateTable)
+    .where(
+      and(eq(mcpOauthStateTable.kind, kind), eq(mcpOauthStateTable.key, key)),
+    );
 }
 
 export async function deleteExpiredStates(): Promise<void> {

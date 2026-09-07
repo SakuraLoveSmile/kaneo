@@ -7,7 +7,9 @@ import {
   createAuthCode,
   createAuthorizationRequest,
   getAuthorizationRequest,
+  getCanonicalMcpResource,
   getClient,
+  normalizeResourceUrl,
   registerClient,
 } from "../oauth";
 import type {
@@ -17,6 +19,10 @@ import type {
 } from "../schemas";
 
 const clientUrl = process.env.KANEO_CLIENT_URL || "http://localhost:5173";
+const publicApiUrl = (process.env.KANEO_API_URL || "http://localhost:1337")
+  .replace(/\/api\/?$/, "")
+  .replace(/\/+$/, "");
+const issuerUrl = `${publicApiUrl}/api`;
 
 type ClientRegistrationInput = z.infer<typeof clientRegistrationSchema>;
 type AuthorizationInput = z.infer<typeof authorizationQuerySchema>;
@@ -24,9 +30,17 @@ type AuthorizationDecisionInput = z.infer<typeof authorizationDecisionSchema>;
 
 type OAuthErrorStatus = 400 | 401 | 403 | 404;
 
-function throwOAuthError(status: OAuthErrorStatus, error: string): never {
+function throwOAuthError(
+  status: OAuthErrorStatus,
+  error: string,
+  errorDescription?: string,
+): never {
+  const body: { error: string; error_description?: string } = { error };
+  if (errorDescription) {
+    body.error_description = errorDescription;
+  }
   throw new HTTPException(status, {
-    res: Response.json({ error }, { status }),
+    res: Response.json(body, { status }),
   });
 }
 
@@ -35,6 +49,7 @@ function buildAuthorizationRedirect(
   params: Record<string, string>,
 ): string {
   const url = new URL(request.redirectUri);
+  url.searchParams.set("iss", issuerUrl);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }
@@ -55,20 +70,85 @@ function isTrustedConsentOrigin(origin: string | undefined): boolean {
 }
 
 export async function registerMcpClient(input: ClientRegistrationInput) {
+  if (input.grant_types !== undefined) {
+    if (!Array.isArray(input.grant_types) || input.grant_types.length === 0) {
+      throwOAuthError(
+        400,
+        "invalid_client_metadata",
+        "grant_types must not be empty",
+      );
+    }
+    if (!input.grant_types.includes("authorization_code")) {
+      throwOAuthError(
+        400,
+        "invalid_client_metadata",
+        "grant_types must include authorization_code",
+      );
+    }
+    const hasUnsupportedGrant = input.grant_types.some(
+      (gt) => gt !== "authorization_code" && gt !== "refresh_token",
+    );
+    if (hasUnsupportedGrant) {
+      throwOAuthError(
+        400,
+        "invalid_client_metadata",
+        "Unsupported grant_type requested",
+      );
+    }
+  }
+
+  if (input.response_types !== undefined) {
+    if (
+      !Array.isArray(input.response_types) ||
+      input.response_types.length === 0
+    ) {
+      throwOAuthError(
+        400,
+        "invalid_client_metadata",
+        "response_types must not be empty",
+      );
+    }
+    if (
+      !input.response_types.includes("code") ||
+      input.response_types.some((rt) => rt !== "code")
+    ) {
+      throwOAuthError(
+        400,
+        "invalid_client_metadata",
+        "Only response_type 'code' is supported",
+      );
+    }
+  }
+
+  if (
+    input.token_endpoint_auth_method !== undefined &&
+    input.token_endpoint_auth_method !== "none"
+  ) {
+    throwOAuthError(
+      400,
+      "invalid_client_metadata",
+      "Only token_endpoint_auth_method 'none' is supported",
+    );
+  }
+
   const client = await registerClient({
     redirectUris: input.redirect_uris,
     clientName: input.client_name,
+    applicationType: input.application_type,
   });
 
   return {
     client_id: client.clientId,
     client_id_issued_at: client.issuedAt,
     redirect_uris: client.redirectUris,
-    client_name: client.clientName,
-    token_endpoint_auth_method: input.token_endpoint_auth_method ?? "none",
-    grant_types: input.grant_types ?? ["authorization_code"],
-    response_types: input.response_types ?? ["code"],
-  } as const;
+    ...(client.clientName ? { client_name: client.clientName } : {}),
+    ...(client.applicationType
+      ? { application_type: client.applicationType }
+      : {}),
+    token_endpoint_auth_method: "none" as const,
+    grant_types: ["authorization_code"] as "authorization_code"[],
+    response_types: ["code"] as "code"[],
+  };
 }
 
 export async function beginMcpAuthorization(
@@ -80,11 +160,21 @@ export async function beginMcpAuthorization(
     throwOAuthError(400, "invalid_redirect_uri");
   }
 
+  const canonicalResource = getCanonicalMcpResource(publicApiUrl);
+  if (
+    input.resource &&
+    normalizeResourceUrl(input.resource) !==
+      normalizeResourceUrl(canonicalResource)
+  ) {
+    throwOAuthError(400, "invalid_target", "The requested resource is invalid");
+  }
+
   const requestId = await createAuthorizationRequest({
     clientId: input.client_id,
     codeChallenge: input.code_challenge,
     redirectUri: input.redirect_uri,
     state: input.state,
+    resource: canonicalResource,
   });
   const consentUrl = new URL("/mcp/authorize", clientUrl);
   consentUrl.searchParams.set("request_id", requestId);
@@ -134,6 +224,7 @@ export async function decideMcpAuthorizationRequest(params: {
     userId: session.user.id,
     codeChallenge: request.codeChallenge,
     redirectUri: request.redirectUri,
+    resource: request.resource,
   });
   await publishEvent("mcp.authorization_code_issued", {
     clientId: request.clientId,

@@ -128,6 +128,13 @@
           "client_name": {
             "type": "string"
           },
+          "application_type": {
+            "type": "string",
+            "enum": [
+              "web",
+              "native"
+            ]
+          },
           "token_endpoint_auth_method": {
             "type": "string",
             "enum": [
@@ -166,6 +173,9 @@
         "type": "object",
         "properties": {
           "error": {
+            "type": "string"
+          },
+          "error_description": {
             "type": "string"
           }
         },
@@ -5378,31 +5388,25 @@
                     "maxLength": 100
                   },
                   "token_endpoint_auth_method": {
-                    "type": "string",
-                    "enum": [
-                      "none"
-                    ]
+                    "type": "string"
                   },
                   "grant_types": {
                     "type": "array",
-                    "prefixItems": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "authorization_code"
-                        ]
-                      }
-                    ]
+                    "items": {
+                      "type": "string"
+                    }
                   },
                   "response_types": {
                     "type": "array",
-                    "prefixItems": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "code"
-                        ]
-                      }
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "application_type": {
+                    "type": "string",
+                    "enum": [
+                      "web",
+                      "native"
                     ]
                   }
                 },
@@ -5414,7 +5418,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Registered OAuth client",
             "content": {
               "application/json": {
@@ -5460,7 +5464,8 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
             "required": true,
             "name": "client_id",
@@ -5478,7 +5483,7 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1,
+              "pattern": "^[A-Za-z0-9\\-_]{43,128}$",
               "description": "PKCE challenge; only S256 is accepted."
             },
             "required": true,
@@ -5503,6 +5508,15 @@
             },
             "required": false,
             "name": "state",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2048
+            },
+            "required": false,
+            "name": "resource",
             "in": "query"
           }
         ],

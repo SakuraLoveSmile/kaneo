@@ -11,7 +11,7 @@ describe("API integration: shared MCP OAuth state", () => {
   it("shares clients, authorization requests and codes across module instances", async () => {
     const firstReplica = await import("../../apps/api/src/mcp/oauth");
     const redirectUri = "https://client.example/callback";
-    const verifier = "shared-state-verifier";
+    const verifier = "shared-state-verifier-with-at-least-43-characters-long";
     const codeChallenge = createHash("sha256")
       .update(verifier)
       .digest("base64url");

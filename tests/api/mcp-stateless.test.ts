@@ -11,6 +11,27 @@ vi.mock("../../apps/api/src/auth", () => ({
   auth: { api: { getSession: authMocks.getSession } },
 }));
 
+vi.mock("../../apps/api/src/mcp/oauth-store", () => ({
+  getState: vi.fn(async (kind: string, key: string) => {
+    if (kind === "token" && key === "test-token") {
+      return {
+        token: "test-token",
+        clientId: "test-client",
+        userId: "test-user",
+        resource: "http://localhost:1337/api/mcp",
+        expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+        createdAt: new Date().toISOString(),
+      };
+    }
+    return null;
+  }),
+  putState: vi.fn(),
+  consumeState: vi.fn(),
+  deleteState: vi.fn(),
+  enforceStateCap: vi.fn(),
+  deleteExpiredStates: vi.fn(),
+}));
+
 const protocolVersion = "2026-07-28";
 
 function modernRequest(
