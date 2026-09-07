@@ -12,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      platforms:
+        description: "Target platforms (e.g., linux/amd64,linux/arm64 or linux/amd64)"
+        required: false
+        type: string
+        default: "linux/amd64,linux/arm64"
 
 jobs:
   build:
@@ -22,6 +27,7 @@ jobs:
     secrets: inherit
     with:
       version: ${{ inputs.version }}
+      platforms: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
       tags: |
         type=raw,value=${{ inputs.version }}
         type=raw,value=latest,enable=${{ inputs.latest }}
