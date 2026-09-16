@@ -4330,9 +4330,5 @@
 	"roles": {},
 	"policies": {},
 	"views": {},
-	"_meta": {
-		"columns": {},
-		"schemas": {},
-		"tables": {}
-	}
+	"_meta": { "columns": {}, "schemas": {}, "tables": {} }
 }

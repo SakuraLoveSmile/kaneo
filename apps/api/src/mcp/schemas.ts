@@ -27,6 +27,8 @@ const redirectUriSchema = z
   .max(2048)
   .refine(isValidRedirectUri, "Invalid redirect URI");
 
+// Clients such as Claude also ask for refresh_token. The server never issues
+// one, so the grant is accepted here and omitted from the registration response.
 export const clientRegistrationSchema = z.object({
   redirect_uris: z.array(redirectUriSchema).min(1),
   client_name: z.string().max(100).optional(),
@@ -60,10 +62,7 @@ export const authorizationDecisionSchema = z.object({
 });
 
 export const oauthErrorSchema = z
-  .object({
-    error: z.string(),
-    error_description: z.string().optional(),
-  })
+  .object({ error: z.string(), error_description: z.string().optional() })
   .openapi("OAuthError");
 
 export const clientRegistrationResponseSchema = z

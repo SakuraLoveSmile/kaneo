@@ -7,6 +7,8 @@ import {
   assetUploadTable,
   columnTable,
   commentTable,
+  customFieldDefinitionTable,
+  customFieldValueTable,
   externalLinkTable,
   githubIntegrationTable,
   instanceStorageSettingTable,
@@ -174,6 +176,7 @@ export const taskTableRelations = relations(taskTable, ({ one, many }) => ({
   sourceRelations: many(taskRelationTable, { relationName: "sourceTask" }),
   targetRelations: many(taskRelationTable, { relationName: "targetTask" }),
   remindersSent: many(taskReminderSentTable),
+  customFieldValues: many(customFieldValueTable),
 }));
 
 export const timeEntryTableRelations = relations(timeEntryTable, ({ one }) => ({
@@ -439,6 +442,31 @@ export const instanceStorageSettingTableRelations = relations(
     user: one(userTable, {
       fields: [instanceStorageSettingTable.updatedBy],
       references: [userTable.id],
+    }),
+  }),
+);
+
+export const customFieldDefinitionTableRelations = relations(
+  customFieldDefinitionTable,
+  ({ one, many }) => ({
+    project: one(projectTable, {
+      fields: [customFieldDefinitionTable.projectId],
+      references: [projectTable.id],
+    }),
+    values: many(customFieldValueTable),
+  }),
+);
+
+export const customFieldValueTableRelations = relations(
+  customFieldValueTable,
+  ({ one }) => ({
+    field: one(customFieldDefinitionTable, {
+      fields: [customFieldValueTable.fieldId],
+      references: [customFieldDefinitionTable.id],
+    }),
+    task: one(taskTable, {
+      fields: [customFieldValueTable.taskId],
+      references: [taskTable.id],
     }),
   }),
 );

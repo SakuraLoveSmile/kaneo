@@ -633,6 +633,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       status,
       userId,
       milestoneId,
+      customFields,
     } = c.req.valid("json");
 
     const parsedStartDate =
@@ -657,6 +658,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       dueDate: parsedDueDate,
       priority,
       status,
+      customFields,
     });
 
     return c.json(task, 200);

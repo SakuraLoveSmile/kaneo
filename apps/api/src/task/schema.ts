@@ -61,6 +61,9 @@ export const createTaskBody = z.object({
     .nullable()
     .optional()
     .openapi({ description: "Milestone, if any." }),
+  customFields: z
+    .array(z.object({ fieldId: z.string(), value: z.string() }))
+    .optional(),
 });
 
 export const updateTaskBody = z.object({
