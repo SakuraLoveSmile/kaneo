@@ -1,0 +1,39 @@
+name: Promote images
+
+# Tags an already-published release's images as :latest. Recovery path for when
+# the release workflow's Promote job did not run.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Published version to tag as latest (e.g. 2.24.0)"
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  promote:
+    name: Promote
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GH_PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      # Copies the published manifest, so :latest is the exact bytes released.
+      - name: Tag images as latest
+        env:
+          OWNER: ${{ github.repository_owner }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          for image in kaneo web api; do
+            ref="ghcr.io/${OWNER,,}/${image}"
+            docker buildx imagetools create --tag "${ref}:latest" "${ref}:${VERSION}"
+          done

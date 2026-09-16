@@ -35,6 +35,8 @@ export default {
       },
     ],
 
-    "@semantic-release/github",
+    // The fork's history references upstream pull requests that do not exist
+    // here, so the default success comments would 404 and fail the release.
+    ["@semantic-release/github", { successCommentCondition: false }],
   ],
 };

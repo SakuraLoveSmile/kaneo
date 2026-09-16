@@ -185,7 +185,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GH_PACKAGE_TOKEN }}
+          password: ${{ secrets.GH_PACKAGE_TOKEN || secrets.GITHUB_TOKEN }}
 
       # Copies the published manifest, so :latest is the exact bytes released.
       - name: Tag images as latest
