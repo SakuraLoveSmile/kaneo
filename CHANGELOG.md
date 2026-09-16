@@ -1,5 +1,37 @@
 ### Features
 
+- add local disk storage backend and instance storage settings: [53494da](https://github.com/SakuraLoveSmile/kaneo/commit/53494da67fd2e13c11a873c7bde818114df8fbae)
+- custom fields configuration: #1542
+- redirect to default project: #1640
+- **i18n:** add Azerbaijani (az-AZ) translation: #1704
+- add milestone management and project roadmap: #1
+
+### Bug Fixes
+
+- **web:** defer Shiki highlighter loading on task page: #1713
+- **i18n:** restore Simplified Chinese translations for Mattermost integration: #1701
+- **i18n:** sync Mattermost keys across locales: #1710
+- **npm:** fixing CVE-2026-75604: #1709
+- **api:** skip archived tasks in due date reminders: #1702
+- **mcp:** support ChatGPT remote MCP OAuth DCR and resource binding: [64bf65c](https://github.com/SakuraLoveSmile/kaneo/commit/64bf65c53f000176962d20318938259a77872a70)
+
+### Documentation
+
+- update contributors and sponsors: [a750d01](https://github.com/SakuraLoveSmile/kaneo/commit/a750d01a2f420992d5321918c9f57750f3326e01)
+- update contributors and sponsors: [eb7cd27](https://github.com/SakuraLoveSmile/kaneo/commit/eb7cd27953f182891c3446f46315f40844e894fe)
+- update contributors and sponsors: [16fcd5f](https://github.com/SakuraLoveSmile/kaneo/commit/16fcd5fc5103ec3ce7187dcb780ef5ac360e1375)
+- update contributors and sponsors: [93cb471](https://github.com/SakuraLoveSmile/kaneo/commit/93cb4712367e5cbb7ac6f9c5ec20e6a037c227bc)
+- update contributors and sponsors: [d7f1c46](https://github.com/SakuraLoveSmile/kaneo/commit/d7f1c4664d55bdea1f3b9e27d1f26607a053c00e)
+- update contributors and sponsors: [243f9d8](https://github.com/SakuraLoveSmile/kaneo/commit/243f9d8e16793d2bbc3d22d66ba53bc21eed0867)
+- update contributors and sponsors: [7ac1789](https://github.com/SakuraLoveSmile/kaneo/commit/7ac1789c5e439a49b48a8700a93eac27c2f2f88f)
+- update contributors and sponsors: [41b72df](https://github.com/SakuraLoveSmile/kaneo/commit/41b72df7cdfefd89f0adf643f249aa3ad6ea28d8)
+
+### Credits
+
+Huge thanks to @MonsPropre, @ApplesBear-X, @randoneering, @jamalkamaladdin, @mmilanovic4, and @SakuraLoveSmile for helping!
+
+### Features
+
 - custom fields configuration: #1542
 - redirect to default project: #1640
 - **i18n:** add Azerbaijani (az-AZ) translation: #1704
