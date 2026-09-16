@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
 import {
@@ -12,6 +12,14 @@ import {
 import { publishEvent } from "../../events";
 import { removeLabelFromGitea } from "../../plugins/gitea/utils/sync-label-to-gitea";
 import { removeLabelFromGitHub } from "../../plugins/github/utils/sync-label-to-github";
+import {
+  collectTaskStorageRefs,
+  deleteAssetObjects,
+} from "../../storage/cleanup-assets";
+import {
+  enqueueStorageCleanup,
+  processStorageCleanupQueue,
+} from "../../storage/cleanup-queue";
 import { assertAssignableUser } from "../../utils/assert-assignable-user";
 import {
   assertValidPriority,
@@ -207,11 +215,35 @@ async function bulkUpdateTasks({
     }
 
     case "delete": {
-      const result = await db
-        .delete(taskTable)
-        .where(inArray(taskTable.id, foundIds));
+      // Locking in a fixed order keeps two concurrent bulk deletes from
+      // deadlocking on the same task rows.
+      const orderedIds = [...foundIds].sort();
 
-      updatedCount = result.rowCount ?? foundIds.length;
+      const outcome = await db.transaction(async (tx) => {
+        await tx
+          .select({ id: taskTable.id })
+          .from(taskTable)
+          .where(inArray(taskTable.id, orderedIds))
+          .orderBy(asc(taskTable.id))
+          .for("update");
+
+        const refs = await collectTaskStorageRefs(orderedIds, tx);
+        const localRefs = refs.filter((ref) => ref.storageBackend === "local");
+        const remoteRefs = refs.filter((ref) => ref.storageBackend !== "local");
+
+        await enqueueStorageCleanup(tx, localRefs);
+
+        const result = await tx
+          .delete(taskTable)
+          .where(inArray(taskTable.id, orderedIds));
+
+        return {
+          updatedCount: result.rowCount ?? orderedIds.length,
+          remoteRefs,
+        };
+      });
+
+      updatedCount = outcome.updatedCount;
 
       for (const task of tasks) {
         await publishEvent("task.deleted", {
@@ -221,6 +253,11 @@ async function bulkUpdateTasks({
           title: task.title,
         });
       }
+
+      if (outcome.remoteRefs.length > 0) {
+        deleteAssetObjects(outcome.remoteRefs).catch(() => {});
+      }
+      processStorageCleanupQueue().catch(() => {});
       break;
     }
 

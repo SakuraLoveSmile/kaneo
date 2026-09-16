@@ -647,6 +647,9 @@ export const assetTable = pgTable(
     size: integer("size").notNull(),
     kind: text("kind").notNull().default("image"),
     surface: text("surface").notNull().default("description"),
+    // Assets written before this column existed all live in S3, so the default
+    // doubles as the backfill for existing installations.
+    storageBackend: text("storage_backend").notNull().default("s3"),
     createdBy: text("created_by").references(() => userTable.id, {
       onDelete: "set null",
       onUpdate: "cascade",
@@ -661,6 +664,107 @@ export const assetTable = pgTable(
     index("asset_createdBy_idx").on(table.createdBy),
   ],
 );
+
+/**
+ * Tracks in-flight uploads for backends that cannot presign a URL themselves.
+ *
+ * Only the token digest is stored, and the record outlives URL expiry so a
+ * client that uploaded successfully can still finalize the asset.
+ */
+export const assetUploadTable = pgTable(
+  "asset_upload",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    tokenHash: text("token_hash").notNull(),
+    backend: text("backend").notNull().default("local"),
+    objectKey: text("object_key").notNull(),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    declaredSize: integer("declared_size").notNull(),
+    actualSize: integer("actual_size"),
+    sha256: text("sha256"),
+    surface: text("surface").notNull().default("description"),
+    status: text("status").notNull().default("pending"),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaceTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projectTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => taskTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    createdBy: text("created_by").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    expiresAt: timestamp("expires_at", { mode: "date" }).notNull(),
+    uploadedAt: timestamp("uploaded_at", { mode: "date" }),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("asset_upload_objectKey_idx").on(table.objectKey),
+    index("asset_upload_taskId_idx").on(table.taskId),
+    index("asset_upload_status_idx").on(table.status),
+    index("asset_upload_expiresAt_idx").on(table.expiresAt),
+  ],
+);
+
+/**
+ * Durable work list for objects that still need deleting on disk.
+ *
+ * Deliberately has no business foreign keys: the rows have to survive the
+ * deletion of the task (and even of the asset rows) they came from, so a failed
+ * unlink can be retried after a restart instead of leaking the file forever.
+ */
+export const storageCleanupQueueTable = pgTable(
+  "storage_cleanup_queue",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    backend: text("backend").notNull().default("local"),
+    objectKey: text("object_key").notNull().unique(),
+    createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+    lastAttemptAt: timestamp("last_attempt_at", { mode: "date" }),
+    lastErrorCode: text("last_error_code"),
+  },
+  (table) => [index("storage_cleanup_queue_createdAt_idx").on(table.createdAt)],
+);
+
+/**
+ * Instance-level storage backend override persisted from web settings.
+ *
+ * Managed solely by instance administrators. Does not store directories or
+ * credentials (which remain in environment/deployment config).
+ */
+export const instanceStorageSettingTable = pgTable("instance_storage_setting", {
+  id: text("id")
+    .$defaultFn(() => "default")
+    .primaryKey(),
+  backend: text("backend"),
+  version: integer("version").notNull().default(1),
+  updatedBy: text("updated_by").references(() => userTable.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
 
 export const labelTable = pgTable(
   "label",

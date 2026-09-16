@@ -4,10 +4,12 @@ import {
   activityTable,
   apikeyTable,
   assetTable,
+  assetUploadTable,
   columnTable,
   commentTable,
   externalLinkTable,
   githubIntegrationTable,
+  instanceStorageSettingTable,
   integrationTable,
   invitationTable,
   labelTable,
@@ -219,6 +221,28 @@ export const assetTableRelations = relations(assetTable, ({ one }) => ({
   }),
 }));
 
+export const assetUploadTableRelations = relations(
+  assetUploadTable,
+  ({ one }) => ({
+    workspace: one(workspaceTable, {
+      fields: [assetUploadTable.workspaceId],
+      references: [workspaceTable.id],
+    }),
+    project: one(projectTable, {
+      fields: [assetUploadTable.projectId],
+      references: [projectTable.id],
+    }),
+    task: one(taskTable, {
+      fields: [assetUploadTable.taskId],
+      references: [taskTable.id],
+    }),
+    creator: one(userTable, {
+      fields: [assetUploadTable.createdBy],
+      references: [userTable.id],
+    }),
+  }),
+);
+
 export const labelTableRelations = relations(labelTable, ({ one }) => ({
   task: one(taskTable, {
     fields: [labelTable.taskId],
@@ -408,3 +432,13 @@ export const commentTableRelations = relations(commentTable, ({ one }) => ({
     references: [userTable.id],
   }),
 }));
+
+export const instanceStorageSettingTableRelations = relations(
+  instanceStorageSettingTable,
+  ({ one }) => ({
+    user: one(userTable, {
+      fields: [instanceStorageSettingTable.updatedBy],
+      references: [userTable.id],
+    }),
+  }),
+);

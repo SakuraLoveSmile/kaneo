@@ -12,7 +12,7 @@ services:
   postgres:
     image: postgres:16-alpine
     env_file:
-      - .env
+      - ${KANEO_ENV_FILE:-.env}
     ports:
       - "5432:5432"
     volumes:
@@ -25,14 +25,16 @@ services:
       retries: 5
 
   kaneo:
-    image: ghcr.io/usekaneo/kaneo:latest
+    image: ${KANEO_IMAGE:-ghcr.io/usekaneo/kaneo:latest}
     ports:
       - "5173:5173"
     env_file:
-      - .env
+      - ${KANEO_ENV_FILE:-.env}
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - uploads_data:/app/apps/api/data/uploads
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:5173/api/health"]
@@ -43,6 +45,7 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:
 ```
 
 ## The services and volumes
@@ -55,6 +58,7 @@ Kaneo uses the following services:
 Additionally, the following volumes are used:
 
 - `postgres_data`: The PostgreSQL data.
+- `uploads_data`: Persistent storage for local file and image uploads.
 
 ## Required URL configuration
 
@@ -81,9 +85,10 @@ Kaneo uses S3-compatible object storage for private uploads in task descriptions
 
 - Object storage is optional. Kaneo runs without it, but uploads in task descriptions and comments will be unavailable.
 - For local/self-hosted setups, MinIO is the recommended option when you want uploads.
+- For a single-instance deployment that would rather not run object storage, set `STORAGE_BACKEND=local` and `LOCAL_STORAGE_PATH=/app/apps/api/data/uploads`. The published `compose.yml` already mounts a `uploads_data` volume at that path, and the image ships a writable directory owned by UID 1001.
 - The Kaneo API creates presigned upload URLs and the browser uploads files directly to the configured storage backend.
 - Kaneo serves uploaded assets back through its own API, so the bucket does not need to be public.
-- If you do not configure object storage, leave the `S3_*` variables unset.
+- If you do not configure object storage, leave the `S3_*` variables unset and either enable local storage or accept that uploads are unavailable.
 - For a complete MinIO example and backend-specific setup notes, see the [storage backends guide](/core/installation/storage-backends).
 
 ### Optional MinIO service
@@ -96,7 +101,7 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     env_file:
-      - .env
+      - ${KANEO_ENV_FILE:-.env}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -137,3 +142,42 @@ When using `fs`, keep these differences in mind:
 - Browser uploads may require reverse-proxy CORS handling, because `fs` does not currently implement S3 CORS APIs.
 
 After creating the compose file, the next step is to set up the environment variables.
+
+## Deploying a custom build with local storage
+
+The official image does not include uncommitted changes from your checkout.
+Build and publish your reviewed source as a separate release, then set
+`KANEO_IMAGE` to its published `registry/repository@sha256:...` digest.
+Do not substitute an image's local configuration ID for a registry digest.
+
+For a production file named `.env.prod`, include:
+
+```env
+KANEO_ENV_FILE=.env.prod
+KANEO_IMAGE=your-registry/kaneo@sha256:<published-digest>
+STORAGE_BACKEND=local
+LOCAL_STORAGE_PATH=/app/apps/api/data/uploads
+```
+
+Keep the URL, PostgreSQL and stable `AUTH_SECRET` settings described above in
+that same file. `--env-file` supplies Compose interpolation; `KANEO_ENV_FILE`
+selects the file loaded into the containers. Validate without printing secrets:
+
+```sh
+docker compose --env-file .env.prod config --quiet
+docker compose --env-file .env.prod pull kaneo
+docker compose --env-file .env.prod up -d
+docker compose --env-file .env.prod ps
+curl --fail http://127.0.0.1:5173/api/health
+```
+
+Before upgrading an existing installation, back up PostgreSQL and the uploads
+volume together. Test the upgrade on a restored copy first. After startup,
+verify an old attachment and upload/download a new one, then recreate the API
+container with the same volume and verify both again. A health check alone does
+not prove file persistence. Keep the Compose project name stable so the same
+named volumes are selected; never use `down -v` for an upgrade.
+
+A web-saved storage backend overrides `STORAGE_BACKEND`. Changing backend does
+not migrate existing files: retain the old backend's directory or S3 connection
+settings until its files have been migrated separately.

@@ -86,7 +86,7 @@ FROM node:24.19.0-alpine AS runtime
 RUN apk add --no-cache nginx=~1.30.4 && \
   addgroup -g 1001 appuser && \
   adduser -u 1001 -G appuser -D appuser && \
-  mkdir -p /app /app/apps/api/data /var/cache/nginx /var/run/nginx /var/log/nginx /var/lib/nginx/logs /var/lib/nginx/tmp /usr/share/nginx/html /docker-entrypoint.d && \
+  mkdir -p /app /app/apps/api/data/uploads /var/cache/nginx /var/run/nginx /var/log/nginx /var/lib/nginx/logs /var/lib/nginx/tmp /usr/share/nginx/html /docker-entrypoint.d && \
   chown -R appuser:appuser /app /app/apps/api/data /var/cache/nginx /var/run/nginx /var/log/nginx /var/lib/nginx /usr/share/nginx/html /docker-entrypoint.d && \
   touch /var/run/nginx.pid && \
   chown appuser:appuser /var/run/nginx.pid && \

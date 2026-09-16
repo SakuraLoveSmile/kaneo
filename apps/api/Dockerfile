@@ -4,7 +4,7 @@ FROM --platform=$BUILDPLATFORM node:24.19.0-alpine AS builder
 # Install build dependencies in a single layer
 RUN apk add --no-cache python3 make g++ && \
   corepack enable && \
-  corepack prepare pnpm@10.7.0 --activate
+  corepack prepare pnpm@10.32.1 --activate
 
 WORKDIR /app
 
@@ -45,7 +45,7 @@ RUN sed -i 's/"extends": "@kaneo\/typescript-config\/base.json"/"extends": "..\/
 # resulting node_modules is architecture-independent and safe to copy into the arm64 runtime.
 FROM --platform=$BUILDPLATFORM node:24.19.0-alpine AS prod-deps
 
-RUN corepack enable && corepack prepare pnpm@10.7.0 --activate
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 
 WORKDIR /app
 
@@ -65,7 +65,7 @@ FROM node:24.19.0-alpine AS runtime
 # Set up user in a single layer
 RUN addgroup -g 1001 appuser && \
   adduser -u 1001 -G appuser -D appuser && \
-  mkdir -p /app/apps/api/data && \
+  mkdir -p /app/apps/api/data/uploads && \
   chown -R appuser:appuser /app
 
 WORKDIR /app

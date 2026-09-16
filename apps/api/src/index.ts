@@ -31,6 +31,7 @@ import giteaIntegration, { handleGiteaWebhookRoute } from "./gitea-integration";
 import githubIntegration, {
   handleGithubWebhookRoute,
 } from "./github-integration";
+import instance from "./instance";
 import getInstanceStatus from "./instance/controllers/get-instance-status";
 import invitation from "./invitation";
 import label from "./label";
@@ -49,7 +50,8 @@ import { getPublicProject } from "./project/controllers/get-public-project";
 import { initializeScheduler, shutdownScheduler } from "./scheduler";
 import search from "./search";
 import slackIntegration from "./slack-integration";
-import { getPrivateObject } from "./storage/s3";
+import { getAssetObject, type StorageBackend } from "./storage";
+import localUploadRoutes from "./storage/local-upload-route";
 import task from "./task";
 import taskRelation from "./task-relation";
 import telegramIntegration from "./telegram-integration";
@@ -294,6 +296,7 @@ export function createApp() {
           mimeType: schema.assetTable.mimeType,
           filename: schema.assetTable.filename,
           workspaceId: schema.assetTable.workspaceId,
+          storageBackend: schema.assetTable.storageBackend,
           isPublic: schema.projectTable.isPublic,
         })
         .from(schema.assetTable)
@@ -311,7 +314,10 @@ export function createApp() {
       await authorizeAssetAccess(c, asset);
 
       try {
-        const object = await getPrivateObject(asset.objectKey);
+        const object = await getAssetObject(
+          asset.storageBackend as StorageBackend,
+          asset.objectKey,
+        );
         const storedContentType =
           (object.contentType || asset.mimeType)
             .toLowerCase()
@@ -542,6 +548,11 @@ export function createApp() {
 
   api.route("/", mcpRoutes);
 
+  // Registered before the app-wide authentication middleware on purpose: local
+  // uploads authenticate with a short-lived per-upload token carried in the
+  // request, so anonymous access stays limited to this one route.
+  api.route("/", localUploadRoutes);
+
   api.use("*", async (c, next) => {
     const path = c.req.path;
     if (
@@ -616,6 +627,7 @@ export function createApp() {
   const invitationApi = api.route("/invitation", invitation);
   const workspaceApi = api.route("/workspace", workspace);
   const userApi = api.route("/user", user);
+  const instanceApi = api.route("/instance", instance);
 
   app.route(
     "/",
@@ -781,6 +793,7 @@ export function createApp() {
     telegramIntegrationApi,
     timeEntryApi,
     userApi,
+    instanceApi,
     workflowRuleApi,
     workspaceApi,
     oauthApi,
@@ -901,6 +914,7 @@ const {
   telegramIntegrationApi,
   timeEntryApi,
   userApi,
+  instanceApi,
   workflowRuleApi,
   workspaceApi,
   oauthApi,
@@ -943,6 +957,7 @@ export type AppType =
   | typeof invitationApi
   | typeof workspaceApi
   | typeof userApi
+  | typeof instanceApi
   | typeof publicProjectApi
   | typeof invitationPublicApi
   | typeof oauthApi;

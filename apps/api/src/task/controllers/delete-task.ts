@@ -3,7 +3,14 @@ import { HTTPException } from "hono/http-exception";
 import db from "../../database";
 import { taskRelationTable, taskTable } from "../../database/schema";
 import { publishEvent } from "../../events";
-import { deleteS3Keys, getTaskAssetKeys } from "../../storage/cleanup-assets";
+import {
+  collectTaskStorageRefs,
+  deleteAssetObjects,
+} from "../../storage/cleanup-assets";
+import {
+  enqueueStorageCleanup,
+  processStorageCleanupQueue,
+} from "../../storage/cleanup-queue";
 import getTask from "./get-task";
 
 async function deleteTask(taskId: string, currentUserId: string) {
@@ -20,15 +27,33 @@ async function deleteTask(taskId: string, currentUserId: string) {
     )
     .execute();
 
-  const assetKeys = await getTaskAssetKeys(taskId);
+  const outcome = await db.transaction(async (tx) => {
+    // Serializes against an in-flight upload publish for the same task, and
+    // against a concurrent delete of it.
+    const [locked] = await tx
+      .select({ id: taskTable.id })
+      .from(taskTable)
+      .where(eq(taskTable.id, taskId))
+      .limit(1)
+      .for("update");
 
-  const [deletedTask] = await db
-    .delete(taskTable)
-    .where(eq(taskTable.id, taskId))
-    .returning()
-    .execute();
+    if (!locked) return null;
 
-  if (!deletedTask) {
+    // Collected while the lock is held so a publish that already landed is
+    // included, and recorded in the same transaction that removes the task: a
+    // committed delete must never lose track of a file it owns.
+    const refs = await collectTaskStorageRefs([taskId], tx);
+    const localRefs = refs.filter((ref) => ref.storageBackend === "local");
+    const remoteRefs = refs.filter((ref) => ref.storageBackend !== "local");
+
+    await enqueueStorageCleanup(tx, localRefs);
+
+    await tx.delete(taskTable).where(eq(taskTable.id, taskId));
+
+    return { remoteRefs };
+  });
+
+  if (!outcome) {
     throw new HTTPException(404, {
       message: "Task not found",
     });
@@ -51,10 +76,13 @@ async function deleteTask(taskId: string, currentUserId: string) {
     });
   }
 
-  // Fire-and-forget S3 cleanup after successful DB delete
-  if (assetKeys.length > 0) {
-    deleteS3Keys(assetKeys).catch(() => {});
+  // Post-commit cleanup: S3 objects keep the previous fire-and-forget path, and
+  // queued local objects are attempted immediately, with the hourly job as the
+  // retry path.
+  if (outcome.remoteRefs.length > 0) {
+    deleteAssetObjects(outcome.remoteRefs).catch(() => {});
   }
+  processStorageCleanupQueue().catch(() => {});
 
   return task;
 }

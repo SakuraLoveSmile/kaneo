@@ -16,11 +16,12 @@ import {
   jsonResponse,
 } from "../openapi";
 import {
-  assertTaskImageKeyMatchesContext,
-  createTaskImageUploadUrl,
+  createTaskImageUpload,
   isImageContentType,
+  isS3StorageConfigured,
   validateTaskAssetUploadInput,
-} from "../storage/s3";
+  verifyTaskImageUploadKey,
+} from "../storage";
 import { normalizeApiServerUrl } from "../utils/openapi-spec";
 import { requireWorkspacePermission } from "../utils/require-workspace-permission";
 import {
@@ -32,6 +33,7 @@ import bulkUpdateTasks from "./controllers/bulk-update-tasks";
 import createTask from "./controllers/create-task";
 import deleteTask from "./controllers/delete-task";
 import exportTasks from "./controllers/export-tasks";
+import { finalizeLocalImageUpload } from "./controllers/finalize-local-image-upload";
 import getTask from "./controllers/get-task";
 import getTasks from "./controllers/get-tasks";
 import importTasks from "./controllers/import-tasks";
@@ -845,13 +847,20 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
     }
 
     try {
-      const upload = await createTaskImageUploadUrl({
-        workspaceId: taskContext.workspaceId,
-        projectId: taskContext.projectId,
-        taskId: taskContext.taskId,
-        surface,
-        filename,
-        contentType,
+      const upload = await createTaskImageUpload({
+        context: {
+          workspaceId: taskContext.workspaceId,
+          projectId: taskContext.projectId,
+          taskId: taskContext.taskId,
+          surface,
+          filename,
+          contentType,
+        },
+        size,
+        createdBy: c.get("userId") || null,
+        apiBaseUrl: normalizeApiServerUrl(
+          process.env.KANEO_API_URL || new URL(c.req.url).origin,
+        ),
       });
 
       return c.json(upload, 200);
@@ -900,74 +909,153 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
     }
 
     const normalizedKey = key.trim();
-    if (
-      !assertTaskImageKeyMatchesContext(normalizedKey, {
-        workspaceId: taskContext.workspaceId,
-        projectId: taskContext.projectId,
-        taskId: taskContext.taskId,
-        surface,
-      })
-    ) {
+    const uploadScope = {
+      workspaceId: taskContext.workspaceId,
+      projectId: taskContext.projectId,
+      taskId: taskContext.taskId,
+      surface,
+    };
+    const apiBaseUrl = normalizeApiServerUrl(
+      process.env.KANEO_API_URL || new URL(c.req.url).origin,
+    );
+
+    const localResult = await finalizeLocalImageUpload({
+      taskContext,
+      key: normalizedKey,
+      filename,
+      contentType,
+      size,
+      surface,
+      createdBy: userId || null,
+    });
+
+    if (localResult.status !== "not-local") {
+      switch (localResult.status) {
+        case "ok":
+          return c.json(
+            {
+              id: localResult.assetId,
+              url: `${apiBaseUrl}/asset/${localResult.assetId}`,
+            },
+            200,
+          );
+        case "key-mismatch":
+          throw new HTTPException(400, {
+            message: "Image upload key does not match the task context.",
+          });
+        case "metadata-mismatch":
+          throw new HTTPException(400, {
+            message: "Upload metadata does not match the original upload.",
+          });
+        case "size-mismatch":
+          throw new HTTPException(400, {
+            message:
+              "Upload size does not match the size declared for this upload.",
+          });
+        case "task-gone":
+          throw new HTTPException(404, { message: "Task not found" });
+        case "invalid":
+          throw new HTTPException(400, { message: localResult.message });
+        case "unavailable":
+          throw new HTTPException(503, { message: localResult.message });
+        case "save-failed":
+          throw new HTTPException(500, { message: "Failed to save asset" });
+      }
+    }
+
+    // Nothing local matched, so this can only be a legacy S3 finalize. Without
+    // S3 configured there is no backend left for the key to belong to.
+    if (!isS3StorageConfigured()) {
       throw new HTTPException(400, {
         message: "Image upload key does not match the task context.",
       });
     }
 
-    const [existingAsset] = await db
-      .select({ id: assetTable.id })
-      .from(assetTable)
-      .where(eq(assetTable.objectKey, normalizedKey))
-      .limit(1);
+    const s3Result = await db.transaction(async (tx) => {
+      // Same task row lock as deletion and local uploads, so a concurrent
+      // delete cannot leave an asset behind for a task that no longer exists.
+      const [lockedTask] = await tx
+        .select({ id: taskTable.id })
+        .from(taskTable)
+        .where(eq(taskTable.id, taskContext.taskId))
+        .limit(1)
+        .for("update");
 
-    const [asset] = existingAsset
-      ? await db
-          .update(assetTable)
-          .set({
-            workspaceId: taskContext.workspaceId,
-            projectId: taskContext.projectId,
-            taskId: taskContext.taskId,
-            filename,
-            mimeType: contentType,
-            size,
-            kind: isImageContentType(contentType) ? "image" : "attachment",
-            surface,
-            createdBy: userId || null,
-          })
-          .where(eq(assetTable.id, existingAsset.id))
-          .returning({
-            id: assetTable.id,
-          })
-      : await db
-          .insert(assetTable)
-          .values({
-            workspaceId: taskContext.workspaceId,
-            projectId: taskContext.projectId,
-            taskId: taskContext.taskId,
-            objectKey: normalizedKey,
-            filename,
-            mimeType: contentType,
-            size,
-            kind: isImageContentType(contentType) ? "image" : "attachment",
-            surface,
-            createdBy: userId || null,
-          })
-          .returning({
-            id: assetTable.id,
-          });
+      if (!lockedTask) return { status: "task-gone" as const };
 
-    if (!asset) {
+      if (!verifyTaskImageUploadKey("s3", normalizedKey, uploadScope)) {
+        return { status: "key-mismatch" as const };
+      }
+
+      const [existingAsset] = await tx
+        .select({ id: assetTable.id })
+        .from(assetTable)
+        .where(eq(assetTable.objectKey, normalizedKey))
+        .limit(1);
+
+      const [asset] = existingAsset
+        ? await tx
+            .update(assetTable)
+            .set({
+              workspaceId: taskContext.workspaceId,
+              projectId: taskContext.projectId,
+              taskId: taskContext.taskId,
+              filename,
+              mimeType: contentType,
+              size,
+              kind: isImageContentType(contentType) ? "image" : "attachment",
+              surface,
+              storageBackend: "s3",
+              createdBy: userId || null,
+            })
+            .where(eq(assetTable.id, existingAsset.id))
+            .returning({
+              id: assetTable.id,
+            })
+        : await tx
+            .insert(assetTable)
+            .values({
+              workspaceId: taskContext.workspaceId,
+              projectId: taskContext.projectId,
+              taskId: taskContext.taskId,
+              objectKey: normalizedKey,
+              filename,
+              mimeType: contentType,
+              size,
+              kind: isImageContentType(contentType) ? "image" : "attachment",
+              surface,
+              storageBackend: "s3",
+              createdBy: userId || null,
+            })
+            .returning({
+              id: assetTable.id,
+            });
+
+      if (!asset) return { status: "error" as const };
+
+      return { status: "ok" as const, assetId: asset.id };
+    });
+
+    if (s3Result.status === "task-gone") {
+      throw new HTTPException(404, { message: "Task not found" });
+    }
+
+    if (s3Result.status === "key-mismatch") {
+      throw new HTTPException(400, {
+        message: "Image upload key does not match the task context.",
+      });
+    }
+
+    if (s3Result.status === "error") {
       throw new HTTPException(500, {
         message: "Failed to save asset",
       });
     }
 
-    const apiBaseUrl = normalizeApiServerUrl(
-      process.env.KANEO_API_URL || new URL(c.req.url).origin,
-    );
     return c.json(
       {
-        id: asset.id,
-        url: `${apiBaseUrl}/asset/${asset.id}`,
+        id: s3Result.assetId,
+        url: `${apiBaseUrl}/asset/${s3Result.assetId}`,
       },
       200,
     );

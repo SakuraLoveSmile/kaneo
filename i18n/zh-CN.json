@@ -343,6 +343,71 @@
 		"notifications": "通知",
 		"preferences": "偏好设置",
 		"apiKeys": "API 密钥",
+		"instance": {
+			"tab": "实例",
+			"title": "实例",
+			"storage": "存储"
+		},
+		"storage": {
+			"title": "存储",
+			"description": "查看并管理任务附件及图片的实例存储方式。",
+			"effectiveBackend": "当前生效存储",
+			"effectiveBackendDescription": "新上传的任务附件将保存至此存储方式。",
+			"source": "配置来源",
+			"sourceDatabase": "网页设置（已持久化保存）",
+			"sourceEnvironment": "环境变量（STORAGE_BACKEND）",
+			"sourceDefault": "系统默认（S3 回退）",
+			"backends": {
+				"title": "存储方式",
+				"local": "本地磁盘存储",
+				"localDescription": "将文件直接保存在实例服务器的本地文件系统中。",
+				"s3": "S3 兼容对象存储",
+				"s3Description": "将文件存储至 AWS S3 或兼容 S3 协议的对象存储服务（MinIO、Cloudflare R2 等）。"
+			},
+			"actions": {
+				"checkConnection": "检测连接",
+				"checking": "正在检测...",
+				"save": "保存",
+				"saving": "正在保存...",
+				"restoreDefault": "恢复部署默认",
+				"restoring": "正在恢复...",
+				"refresh": "刷新"
+			},
+			"checkResult": {
+				"success": "连接检测成功",
+				"failed": "连接检测失败：{{error}}",
+				"testedAt": "检测时间：{{time}}"
+			},
+			"notConfigured": {
+				"local": "当前部署环境未配置本地存储目录。请在环境变量中设置绝对路径 LOCAL_STORAGE_PATH。",
+				"s3": "当前部署环境未完整配置 S3。请在环境变量中设置 S3_ENDPOINT、S3_BUCKET 及 S3 凭据。"
+			},
+			"migrationWarning": {
+				"title": "存储切换说明",
+				"description": "切换存储仅对新上传生效；旧文件不会自动迁移，仍将按原有存储配置读取和删除。请勿移除或解绑旧存储目录或 Bucket。"
+			},
+			"status": {
+				"configured": "已配置",
+				"notConfigured": "未配置"
+			},
+			"loadError": {
+				"title": "读取存储设置失败",
+				"description": "无法从服务器获取实例存储配置。",
+				"retry": "重试"
+			},
+			"refreshFailed": {
+				"title": "后台刷新失败",
+				"description": "无法刷新最新存储配置。为避免覆盖变更，已禁用保存。请重试刷新。"
+			},
+			"toasts": {
+				"saveSuccess": "存储设置已保存",
+				"saveError": "保存存储设置失败",
+				"restoreSuccess": "已恢复部署默认存储设置",
+				"restoreError": "恢复部署默认失败",
+				"conflict": "存储设置已被其他管理员修改，请刷新页面后重试。",
+				"probeFailed": "存储连接检测失败，原设置未被修改。"
+			}
+		},
 		"informationPage": {
 			"pageTitle": "个人信息",
 			"title": "个人信息",
@@ -1389,7 +1454,8 @@
 			"projectsTitle": "项目",
 			"settingsTitle": "设置",
 			"backToWorkspace": "返回工作区",
-			"settingsWorkspaceTab": "工作区"
+			"settingsWorkspaceTab": "工作区",
+			"settingsInstanceTab": "实例"
 		},
 		"projectSettings": {
 			"projectLabel": "Project"

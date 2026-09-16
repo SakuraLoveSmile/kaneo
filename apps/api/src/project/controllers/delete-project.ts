@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
 import { projectTable } from "../../database/schema";
+import { processStorageCleanupQueue } from "../../storage/cleanup-queue";
 import getProject from "./get-project";
 
 async function deleteProject(id: string, workspaceId: string) {
@@ -17,6 +18,8 @@ async function deleteProject(id: string, workspaceId: string) {
       message: "Failed to delete project",
     });
   }
+
+  processStorageCleanupQueue().catch(() => {});
 
   return existingProject;
 }

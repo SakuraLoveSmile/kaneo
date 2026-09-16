@@ -343,6 +343,71 @@
 		"notifications": "Notifications",
 		"preferences": "Preferences",
 		"apiKeys": "API Keys",
+		"instance": {
+			"tab": "Instance",
+			"title": "Instance",
+			"storage": "Storage"
+		},
+		"storage": {
+			"title": "Storage",
+			"description": "View and manage instance storage backends for task attachments and images.",
+			"effectiveBackend": "Active Storage Backend",
+			"effectiveBackendDescription": "New task uploads will be stored on this backend.",
+			"source": "Configuration Source",
+			"sourceDatabase": "Web Settings (persisted)",
+			"sourceEnvironment": "Environment (STORAGE_BACKEND)",
+			"sourceDefault": "Default (S3 fallback)",
+			"backends": {
+				"title": "Storage Options",
+				"local": "Local Disk Storage",
+				"localDescription": "Store uploads directly on the instance filesystem.",
+				"s3": "S3-Compatible Object Storage",
+				"s3Description": "Store uploads in AWS S3 or an S3-compatible service (MinIO, R2, etc.)."
+			},
+			"actions": {
+				"checkConnection": "Test Connection",
+				"checking": "Testing...",
+				"save": "Save Changes",
+				"saving": "Saving...",
+				"restoreDefault": "Restore Deployment Default",
+				"restoring": "Restoring...",
+				"refresh": "Refresh"
+			},
+			"checkResult": {
+				"success": "Connection test passed successfully",
+				"failed": "Connection test failed: {{error}}",
+				"testedAt": "Tested at {{time}}"
+			},
+			"notConfigured": {
+				"local": "Local storage path is not configured on this deployment. Set LOCAL_STORAGE_PATH to an absolute path in your environment.",
+				"s3": "S3 storage is not configured on this deployment. Set S3_ENDPOINT, S3_BUCKET, and S3 credentials in your environment."
+			},
+			"migrationWarning": {
+				"title": "Notice on Storage Switching",
+				"description": "Switching storage only affects new uploads. Existing attachments and images are not migrated and will continue to be served from their original backend. Do not delete or unmount historical storage locations."
+			},
+			"status": {
+				"configured": "Configured",
+				"notConfigured": "Not configured"
+			},
+			"loadError": {
+				"title": "Failed to load storage settings",
+				"description": "Could not retrieve instance storage configuration from the server.",
+				"retry": "Retry"
+			},
+			"refreshFailed": {
+				"title": "Background refresh failed",
+				"description": "Could not refresh the latest storage configuration. Saving is disabled to prevent overwriting changes. Please retry."
+			},
+			"toasts": {
+				"saveSuccess": "Storage settings updated successfully",
+				"saveError": "Failed to save storage settings",
+				"restoreSuccess": "Restored deployment default storage",
+				"restoreError": "Failed to restore deployment default",
+				"conflict": "Settings were modified by another administrator. Please refresh the page.",
+				"probeFailed": "Storage connection test failed. Settings were not modified."
+			}
+		},
 		"informationPage": {
 			"pageTitle": "Personal Information",
 			"title": "Personal Information",
@@ -1390,7 +1455,8 @@
 			"projectsTitle": "Projects",
 			"settingsTitle": "Settings",
 			"backToWorkspace": "Back to Workspace",
-			"settingsWorkspaceTab": "Workspace"
+			"settingsWorkspaceTab": "Workspace",
+			"settingsInstanceTab": "Instance"
 		},
 		"projectSettings": {
 			"projectLabel": "Project"

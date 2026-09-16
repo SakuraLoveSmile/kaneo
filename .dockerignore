@@ -3,6 +3,8 @@
 .turbo
 **/.next
 **/.turbo
+**/.cache
+**/*.tsbuildinfo
 **/coverage
 **/dist
 **/node_modules
@@ -10,3 +12,7 @@
 .env.*
 !apps/web/.env.production
 *.log
+
+# Runtime uploads and local agent state must never enter an image.
+apps/api/data/
+**/.mimosa/

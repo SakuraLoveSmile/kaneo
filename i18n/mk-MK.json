@@ -1312,6 +1312,71 @@
 			"webhookHint": "Create an Incoming Webhook in Mattermost and paste the generated URL here.",
 			"webhookLabel": "Incoming webhook URL",
 			"webhookPlaceholder": "https://your-mattermost-server.com/hooks/..."
+		},
+		"instance": {
+			"storage": "Storage",
+			"tab": "Instance",
+			"title": "Instance"
+		},
+		"storage": {
+			"actions": {
+				"checkConnection": "Test Connection",
+				"checking": "Testing...",
+				"refresh": "Refresh",
+				"restoreDefault": "Restore Deployment Default",
+				"restoring": "Restoring...",
+				"save": "Save Changes",
+				"saving": "Saving..."
+			},
+			"backends": {
+				"local": "Local Disk Storage",
+				"localDescription": "Store uploads directly on the instance filesystem.",
+				"s3": "S3-Compatible Object Storage",
+				"s3Description": "Store uploads in AWS S3 or an S3-compatible service (MinIO, R2, etc.).",
+				"title": "Storage Options"
+			},
+			"checkResult": {
+				"failed": "Connection test failed: {{error}}",
+				"success": "Connection test passed successfully",
+				"testedAt": "Tested at {{time}}"
+			},
+			"description": "View and manage instance storage backends for task attachments and images.",
+			"effectiveBackend": "Active Storage Backend",
+			"effectiveBackendDescription": "New task uploads will be stored on this backend.",
+			"migrationWarning": {
+				"description": "Switching storage only affects new uploads. Existing attachments and images are not migrated and will continue to be served from their original backend. Do not delete or unmount historical storage locations.",
+				"title": "Notice on Storage Switching"
+			},
+			"notConfigured": {
+				"local": "Local storage path is not configured on this deployment. Set LOCAL_STORAGE_PATH to an absolute path in your environment.",
+				"s3": "S3 storage is not configured on this deployment. Set S3_ENDPOINT, S3_BUCKET, and S3 credentials in your environment."
+			},
+			"source": "Configuration Source",
+			"sourceDatabase": "Web Settings (persisted)",
+			"sourceDefault": "Default (S3 fallback)",
+			"sourceEnvironment": "Environment (STORAGE_BACKEND)",
+			"title": "Storage",
+			"toasts": {
+				"conflict": "Settings were modified by another administrator. Please refresh the page.",
+				"probeFailed": "Storage connection test failed. Settings were not modified.",
+				"restoreError": "Failed to restore deployment default",
+				"restoreSuccess": "Restored deployment default storage",
+				"saveError": "Failed to save storage settings",
+				"saveSuccess": "Storage settings updated successfully"
+			},
+			"loadError": {
+				"description": "Could not retrieve instance storage configuration from the server.",
+				"retry": "Retry",
+				"title": "Failed to load storage settings"
+			},
+			"refreshFailed": {
+				"description": "Could not refresh the latest storage configuration. Saving is disabled to prevent overwriting changes. Please retry.",
+				"title": "Background refresh failed"
+			},
+			"status": {
+				"configured": "Configured",
+				"notConfigured": "Not configured"
+			}
 		}
 	},
 	"navigation": {
@@ -1390,7 +1455,8 @@
 			"projectsTitle": "Проекти",
 			"settingsTitle": "Поставки",
 			"backToWorkspace": "Назад кон работен простор",
-			"settingsWorkspaceTab": "Работен простор"
+			"settingsWorkspaceTab": "Работен простор",
+			"settingsInstanceTab": "Instance"
 		},
 		"projectSettings": {
 			"projectLabel": "Проект"

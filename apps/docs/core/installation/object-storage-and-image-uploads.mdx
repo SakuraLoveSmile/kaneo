@@ -24,6 +24,101 @@ Current behavior:
 
 If you want backend-specific setup examples, see the [storage backends guide](/core/installation/storage-backends).
 
+## Configuration priority and Web administration
+
+Instance administrators can view current storage status, test availability, and switch
+between Local Disk and S3 storage directly from the web interface under
+**Settings → Instance → Storage**.
+
+Kaneo resolves the active storage backend for new uploads in the following fixed priority order:
+
+1. **Web settings** (saved in the database by an instance administrator).
+2. **`STORAGE_BACKEND` environment variable** (`local` or `s3`).
+3. **S3 default** (if no web override or environment variable is specified).
+
+Administrators can use the **Restore Deployment Default** action in the web UI at any time
+to clear the web override and revert back to the deployment environment configuration.
+
+<Warning>
+  Switching storage backends only affects new uploads. Existing attachments and images are
+  not migrated and will continue to be read and deleted from the backend recorded on their
+  asset row. Keep historical storage directories mounted and S3 credentials configured if
+  they contain previously uploaded files.
+</Warning>
+
+<Warning>
+  Always back up the PostgreSQL database and the local upload volume together: asset database
+  records and stored files form a coupled system.
+</Warning>
+
+## Local disk storage (no object storage required)
+
+Single-instance deployments can keep uploads on the API server's disk instead of
+running MinIO or another S3-compatible service. Set:
+
+```env
+STORAGE_BACKEND=local
+LOCAL_STORAGE_PATH=/app/apps/api/data/uploads
+```
+
+How the local backend behaves:
+
+- the Kaneo API returns a Kaneo-hosted upload URL and a short-lived upload token
+  instead of a presigned S3 URL
+- the browser, or any API client, PUTs the bytes to that URL
+- uploads are streamed to a temporary file, verified in size and checksum, then
+  published atomically; an interrupted upload never leaves a readable partial file
+- an upload is rejected if the bytes received do not match the size the client
+  declared, or if the uploader lost workspace access while the upload was in flight
+- deleting a task also removes files that were uploaded but never finalized
+- object deletions that fail (unreachable volume, read-only mount, disk error) are
+  recorded and retried hourly, including after a restart, so a file is not
+  silently orphaned
+- assets are still served back through `/api/asset/:id` with the same
+  authorization rules
+
+<Warning>
+  The upload directory must be writable only by the Kaneo service account
+  (UID 1001 in the provided images) and trusted administrators. Kaneo refuses to
+  read, write or delete through symbolic links inside the storage root, but no
+  in-process check can defend against a local process that can freely replace the
+  directory it is given.
+</Warning>
+
+<Warning>
+  `LOCAL_STORAGE_PATH` must be an absolute path on a persistent volume. Do not
+  point it at a temporary directory, and do not rely on the container's writable
+  layer: an image upgrade or restart discards anything written there. Back up the
+  database and the upload directory together, since asset rows and files are only
+  meaningful as a pair.
+</Warning>
+
+<Warning>
+  Local storage is limited to a single API instance. Multiple API replicas need a
+  shared filesystem or, preferably, S3-compatible object storage. The Helm chart
+  keeps using S3 for this reason.
+</Warning>
+
+Notes:
+
+- Switching `STORAGE_BACKEND` does not move existing files. Assets keep being
+  read from the backend they were written to, so previously uploaded S3 objects
+  stay available as long as the `S3_*` variables remain set.
+- Both the bundled `ghcr.io/usekaneo/kaneo` image and the standalone API image
+  already contain a writable `/app/apps/api/data/uploads` directory owned by the
+  runtime user (UID 1001). Mount a named volume there to make it durable. The
+  `compose.yml` and `compose.local.yml` examples both do this.
+
+```yaml
+services:
+  kaneo:
+    volumes:
+      - uploads_data:/app/apps/api/data/uploads
+
+volumes:
+  uploads_data:
+```
+
 ## Recommended local setup: MinIO
 
 For local or self-hosted deployments, MinIO is the recommended storage backend.
@@ -136,7 +231,23 @@ Important notes for `fs`:
 
 ## Required Kaneo storage variables
 
-Set these in your Kaneo deployment:
+Choose a backend first. `STORAGE_BACKEND` defaults to `s3`, so existing
+deployments keep their current behavior after an upgrade.
+
+| Name | Description |
+| --- | --- |
+| `STORAGE_BACKEND` | `s3` (default) or `local` |
+| `STORAGE_MAX_UPLOAD_BYTES` | Maximum allowed upload size in bytes for every backend. Falls back to `S3_MAX_IMAGE_UPLOAD_BYTES`, then 10 MiB |
+| `STORAGE_UPLOAD_URL_TTL_SECONDS` | Upload credential lifetime. Falls back to `S3_PRESIGN_TTL_SECONDS`, then 300 seconds |
+
+Required when `STORAGE_BACKEND=local`:
+
+| Name | Description |
+| --- | --- |
+| `LOCAL_STORAGE_PATH` | Absolute, writable directory that holds the uploads. Must be on a persistent volume |
+| `LOCAL_UPLOAD_TEMP_TTL_SECONDS` | Optional. Grace period before abandoned partial uploads are cleaned up. Defaults to 3600 |
+
+Required when `STORAGE_BACKEND=s3` (or unset):
 
 | Name | Description |
 | --- | --- |
@@ -152,8 +263,8 @@ Optional:
 | Name | Description |
 | --- | --- |
 | `S3_PUBLIC_BASE_URL` | Optional public asset base URL. Kaneo does not require this for the current private asset flow. |
-| `S3_MAX_IMAGE_UPLOAD_BYTES` | Maximum allowed upload size in bytes for images and other uploaded files |
-| `S3_PRESIGN_TTL_SECONDS` | Presigned upload URL lifetime |
+| `S3_MAX_IMAGE_UPLOAD_BYTES` | Legacy alias for `STORAGE_MAX_UPLOAD_BYTES` |
+| `S3_PRESIGN_TTL_SECONDS` | Legacy alias for `STORAGE_UPLOAD_URL_TTL_SECONDS` |
 
 ## Using an IAM role (AWS S3) instead of static keys
 

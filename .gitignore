@@ -58,3 +58,9 @@ apps/web/.tanstack/
 
 # TypeScript incremental build state
 *.tsbuildinfo
+
+# Local upload storage (STORAGE_BACKEND=local)
+apps/api/data/
+
+# Mimosa tool state
+.mimosa/

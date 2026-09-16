@@ -7,6 +7,7 @@ import {
 import { syncWorkspaceSeats } from "../../billing/controllers/sync-seats";
 import db from "../../database";
 import { workspaceTable, workspaceUserTable } from "../../database/schema";
+import { processStorageCleanupQueue } from "../../storage/cleanup-queue";
 import {
   formatBlockedWorkspacesMessage,
   hasOwnerRole,
@@ -82,6 +83,7 @@ export async function deleteAccountData(userId: string) {
     await db
       .delete(workspaceTable)
       .where(inArray(workspaceTable.id, plan.workspaceIdsToDelete));
+    processStorageCleanupQueue().catch(() => {});
   }
 
   if (plan.workspaceIdsToLeave.length > 0) {

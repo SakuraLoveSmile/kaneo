@@ -8,6 +8,7 @@ import { ChevronLeft, PanelLeftIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import PageTitle from "@/components/page-title";
+import useAuth from "@/components/providers/auth-provider/hooks/use-auth";
 import { SettingsSidebarProvider } from "@/components/SettingsSidebar";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,6 +28,8 @@ function SettingsLayout() {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const { data: workspace } = useActiveWorkspace();
   const { data: projects } = useGetProjects({
     workspaceId: workspace?.id ?? "",
@@ -42,6 +45,9 @@ function SettingsLayout() {
     }
     if (pathname.includes("/dashboard/settings/projects")) {
       return "project";
+    }
+    if (pathname.includes("/dashboard/settings/instance")) {
+      return "instance";
     }
     return "account";
   };
@@ -113,7 +119,7 @@ function SettingsLayout() {
 
             <Tabs
               value={activeTab}
-              className="w-full pt-4 md:w-[400px] md:pt-2"
+              className="w-full pt-4 md:w-auto md:max-w-xl md:pt-2"
             >
               <TabsList className="bg-sidebar gap-2">
                 <TabsTrigger
@@ -150,6 +156,19 @@ function SettingsLayout() {
                 >
                   {t("navigation:sidebar.projects")}
                 </TabsTrigger>
+                {isAdmin && (
+                  <TabsTrigger
+                    value="instance"
+                    className="[&[data-state=active]]:rounded-md [&[data-state=active]]:border [&[data-state=active]]:border-border [&[data-state=active]]:bg-card"
+                    onClick={() =>
+                      navigate({
+                        to: "/dashboard/settings/instance/storage",
+                      })
+                    }
+                  >
+                    {t("navigation:page.settingsInstanceTab")}
+                  </TabsTrigger>
+                )}
               </TabsList>
             </Tabs>
           </div>

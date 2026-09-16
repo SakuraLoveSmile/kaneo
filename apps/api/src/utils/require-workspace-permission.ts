@@ -2,10 +2,17 @@ import { type BuiltInRoleName, builtInRoles } from "@kaneo/permissions";
 import { and, eq } from "drizzle-orm";
 import type { Context, Next } from "hono";
 import { HTTPException } from "hono/http-exception";
-import db, { schema } from "../database";
-import { isInstanceAdmin } from "./is-instance-admin";
+import db, { type DatabaseInstance, schema } from "../database";
+import { isInstanceAdmin, isUserInstanceAdmin } from "./is-instance-admin";
 
 type PermissionMap = Record<string, string[]>;
+
+/**
+ * Minimal query surface shared by the pool and an open transaction, so a
+ * permission re-check inside a transaction reuses that transaction's
+ * connection instead of taking another one from the pool.
+ */
+export type PermissionExecutor = Pick<DatabaseInstance, "select">;
 
 function builtInRoleStatements(
   role: string,
@@ -53,8 +60,9 @@ function parsePermissionStatements(
 async function customRoleStatements(
   workspaceId: string,
   role: string,
+  executor: PermissionExecutor,
 ): Promise<Record<string, readonly string[]> | null> {
-  const [row] = await db
+  const [row] = await executor
     .select({ permission: schema.workspaceRoleTable.permission })
     .from(schema.workspaceRoleTable)
     .where(
@@ -84,6 +92,62 @@ function satisfies(
   return true;
 }
 
+/**
+ * Workspace permission check for a user id, without a request context.
+ *
+ * Shares the custom-role, built-in-role and instance-admin rules with the
+ * middleware so an already-authorized long-running request (an upload PUT) can
+ * re-check the requester instead of trusting the identity captured earlier.
+ * API key scope is a separate concern and stays with the middleware.
+ *
+ * `executor` must be the caller's transaction when one is open. Falling back to
+ * the pool from inside a transaction would need a second connection while the
+ * first is still held, which deadlocks once as many transactions as pool slots
+ * are in flight.
+ */
+export async function userHasWorkspacePermission({
+  userId,
+  workspaceId,
+  permissions,
+  isAdmin,
+  executor = db,
+}: {
+  userId: string;
+  workspaceId: string;
+  permissions: PermissionMap;
+  isAdmin?: boolean;
+  executor?: PermissionExecutor;
+}): Promise<boolean> {
+  if (!userId || !workspaceId) return false;
+
+  if (isAdmin ?? (await isUserInstanceAdmin(userId, executor))) return true;
+
+  const [member] = await executor
+    .select({ role: schema.workspaceUserTable.role })
+    .from(schema.workspaceUserTable)
+    .where(
+      and(
+        eq(schema.workspaceUserTable.workspaceId, workspaceId),
+        eq(schema.workspaceUserTable.userId, userId),
+      ),
+    )
+    .limit(1);
+
+  if (!member?.role) return false;
+
+  // Prefer the DB row when present so admin-edited defaults
+  // (viewer/member/admin) take effect immediately. Falls back to the
+  // compiled-in static definitions only when no row exists, which protects
+  // viewer/member/admin users from a 403 if their workspace somehow
+  // missed the seed (e.g., seed failed during workspace creation and
+  // the boot-time backfill hasn't run yet).
+  const statements =
+    (await customRoleStatements(workspaceId, member.role, executor)) ??
+    builtInRoleStatements(member.role);
+
+  return Boolean(statements && satisfies(statements, permissions));
+}
+
 export async function hasWorkspacePermission(
   c: Context,
   permissions: PermissionMap,
@@ -105,30 +169,13 @@ export async function hasWorkspacePermission(
   const userId = c.get("userId");
   if (!userId) return false;
 
-  const [member] = await db
-    .select({ role: schema.workspaceUserTable.role })
-    .from(schema.workspaceUserTable)
-    .where(
-      and(
-        eq(schema.workspaceUserTable.workspaceId, workspaceId),
-        eq(schema.workspaceUserTable.userId, userId),
-      ),
-    )
-    .limit(1);
-
-  if (!member?.role) return false;
-
-  // Prefer the DB row when present so admin-edited defaults
-  // (viewer/member/admin) take effect immediately. Falls back to the
-  // compiled-in static definitions only when no row exists, which protects
-  // viewer/member/admin users from a 403 if their workspace somehow
-  // missed the seed (e.g., seed failed during workspace creation and
-  // the boot-time backfill hasn't run yet).
-  const statements =
-    (await customRoleStatements(workspaceId, member.role)) ??
-    builtInRoleStatements(member.role);
-
-  return Boolean(statements && satisfies(statements, permissions));
+  return userHasWorkspacePermission({
+    userId,
+    workspaceId,
+    permissions,
+    // Already resolved above; skip the duplicate lookup.
+    isAdmin: false,
+  });
 }
 
 export function requireWorkspacePermission(permissions: PermissionMap) {

@@ -3,12 +3,52 @@ import db from "../database";
 import {
   activityTable,
   assetTable,
+  assetUploadTable,
   commentTable,
   taskTable,
 } from "../database/schema";
-import { deleteS3Object } from "./s3";
+import {
+  dedupeStorageRefs,
+  type StorageCleanupRef,
+  type StorageRefReader,
+} from "./cleanup-queue";
+import { deleteAssetObject } from "./index";
+import type { StorageBackend } from "./shared";
 
 const ASSET_URL_PATTERN = /\/api\/asset\/([a-z0-9]+)/gi;
+
+export type StoredAssetRef = StorageCleanupRef;
+
+/**
+ * Collects every stored object a set of tasks owns.
+ *
+ * Includes `asset_upload` rows, not just finalized `asset` rows, so a file that
+ * was uploaded but never finalized is still removed with its task.
+ */
+export async function collectTaskStorageRefs(
+  taskIds: string[],
+  reader: StorageRefReader = db,
+): Promise<StorageCleanupRef[]> {
+  if (taskIds.length === 0) return [];
+
+  const assets = await reader
+    .select({
+      objectKey: assetTable.objectKey,
+      storageBackend: assetTable.storageBackend,
+    })
+    .from(assetTable)
+    .where(inArray(assetTable.taskId, taskIds));
+
+  const uploads = await reader
+    .select({
+      objectKey: assetUploadTable.objectKey,
+      storageBackend: assetUploadTable.backend,
+    })
+    .from(assetUploadTable)
+    .where(inArray(assetUploadTable.taskId, taskIds));
+
+  return dedupeStorageRefs([...assets, ...uploads]);
+}
 
 export function extractAssetIds(
   content: string | null | undefined,
@@ -99,7 +139,11 @@ export async function deleteOrphanedAssets(
   if (removedIds.length === 0) return;
 
   const assets = await db
-    .select({ id: assetTable.id, objectKey: assetTable.objectKey })
+    .select({
+      id: assetTable.id,
+      objectKey: assetTable.objectKey,
+      storageBackend: assetTable.storageBackend,
+    })
     .from(assetTable)
     .where(
       and(
@@ -121,9 +165,7 @@ export async function deleteOrphanedAssets(
 
   if (assetsToDelete.length === 0) return;
 
-  const deleteResults = await deleteS3Keys(
-    assetsToDelete.map((asset) => asset.objectKey),
-  );
+  const deleteResults = await deleteAssetObjects(assetsToDelete);
 
   const deletedAssetIds = assetsToDelete
     .filter((_, index) => deleteResults[index]?.status === "fulfilled")
@@ -134,38 +176,52 @@ export async function deleteOrphanedAssets(
   await db.delete(assetTable).where(inArray(assetTable.id, deletedAssetIds));
 }
 
-export async function getTaskAssetKeys(taskId: string): Promise<string[]> {
+export async function getTaskAssets(taskId: string): Promise<StoredAssetRef[]> {
   const assets = await db
-    .select({ objectKey: assetTable.objectKey })
+    .select({
+      objectKey: assetTable.objectKey,
+      storageBackend: assetTable.storageBackend,
+    })
     .from(assetTable)
     .where(eq(assetTable.taskId, taskId));
 
-  return assets.map((a) => a.objectKey);
+  return assets;
 }
 
-export async function deleteS3Keys(
-  keys: string[],
+/**
+ * Deletes each object through its owning backend and reports failures without
+ * aborting the rest, since one unreachable backend should not strand the
+ * others.
+ */
+export async function deleteAssetObjects(
+  assets: StoredAssetRef[],
 ): Promise<PromiseSettledResult<void>[]> {
   const deleteResults = await Promise.allSettled(
-    keys.map((key) => deleteS3Object(key)),
+    assets.map((asset) =>
+      deleteAssetObject(
+        asset.storageBackend as StorageBackend,
+        asset.objectKey,
+      ),
+    ),
   );
 
-  const failedDeletions = keys
-    .map((key, index) => ({ key, result: deleteResults[index] }))
+  const failedDeletions = assets
+    .map((asset, index) => ({ asset, result: deleteResults[index] }))
     .filter(
       (
         deletion,
       ): deletion is {
-        key: string;
+        asset: StoredAssetRef;
         result: PromiseRejectedResult;
       } => deletion.result?.status === "rejected",
     );
 
   if (failedDeletions.length > 0) {
     console.error(
-      "Failed to delete S3 objects",
-      failedDeletions.map(({ key, result }) => ({
-        key,
+      "Failed to delete stored objects",
+      failedDeletions.map(({ asset, result }) => ({
+        key: asset.objectKey,
+        backend: asset.storageBackend,
         reason: result.reason,
       })),
     );

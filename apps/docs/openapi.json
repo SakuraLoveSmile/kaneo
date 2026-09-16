@@ -210,6 +210,26 @@
           "redirect"
         ]
       },
+      "LocalUploadResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "size"
+        ]
+      },
       "OAuthIdToken": {
         "type": "object",
         "properties": {
@@ -3269,6 +3289,106 @@
         "required": [
           "deleted"
         ]
+      },
+      "InstanceStorageStatus": {
+        "type": "object",
+        "properties": {
+          "backend": {
+            "type": "string",
+            "enum": [
+              "local",
+              "s3"
+            ],
+            "description": "Currently active storage backend for new uploads.",
+            "example": "local"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "database",
+              "environment",
+              "default"
+            ],
+            "description": "Source of active storage configuration: 'database' (saved in web UI), 'environment' (STORAGE_BACKEND env), or 'default' (S3 fallback).",
+            "example": "database"
+          },
+          "version": {
+            "type": "integer",
+            "description": "Current settings version counter.",
+            "example": 1
+          },
+          "localConfigured": {
+            "type": "boolean",
+            "description": "Whether local storage has valid directory configuration in environment.",
+            "example": true
+          },
+          "s3Configured": {
+            "type": "boolean",
+            "description": "Whether S3 has required bucket, endpoint and credentials in environment.",
+            "example": false
+          },
+          "localReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Configuration guidance if local storage is missing required settings.",
+            "example": null
+          },
+          "s3Reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Configuration guidance if S3 is missing required settings.",
+            "example": "S3_ENDPOINT and S3_BUCKET must be configured in environment."
+          }
+        },
+        "required": [
+          "backend",
+          "source",
+          "version",
+          "localConfigured",
+          "s3Configured"
+        ]
+      },
+      "InstanceStorageCheckResult": {
+        "type": "object",
+        "properties": {
+          "backend": {
+            "type": "string",
+            "enum": [
+              "local",
+              "s3"
+            ],
+            "description": "The tested backend.",
+            "example": "local"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the write/read/delete probe succeeded.",
+            "example": true
+          },
+          "checkedAt": {
+            "type": "string",
+            "description": "ISO timestamp when the probe ran.",
+            "example": "2026-09-16T12:00:00.000Z"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Safe, actionable error description if the probe failed.",
+            "example": null
+          }
+        },
+        "required": [
+          "backend",
+          "success",
+          "checkedAt",
+          "error"
+        ]
       }
     },
     "parameters": {}
@@ -5671,6 +5791,102 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/local-upload/{uploadId}": {
+      "put": {
+        "operationId": "uploadLocalObject",
+        "tags": [
+          "Assets"
+        ],
+        "summary": "Upload object bytes to local storage",
+        "description": "Uploads raw bytes for an upload created by the task image upload route. Requires the short-lived upload credential returned with the upload URL; it is not authenticated by session or API key. Only available when the instance is configured with local storage.",
+        "security": [],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The upload id returned by the create image upload route."
+            },
+            "required": true,
+            "description": "The upload id returned by the create image upload route.",
+            "name": "uploadId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Unix seconds at which the upload credential expires."
+            },
+            "required": false,
+            "description": "Unix seconds at which the upload credential expires.",
+            "name": "Expires",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The uploaded object was stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalUploadResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request body or upload key is invalid",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The upload credential is invalid or expired",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A different file already exists for this upload",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The upload exceeds the maximum allowed size",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Local storage is unavailable on this instance",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -14169,6 +14385,210 @@
           },
           "401": {
             "description": "Missing or invalid credentials"
+          }
+        }
+      }
+    },
+    "/instance/storage": {
+      "get": {
+        "operationId": "getInstanceStorage",
+        "tags": [
+          "Instance"
+        ],
+        "summary": "Get instance storage configuration",
+        "description": "Returns effective storage backend, configuration source, settings version, and backend availability. Restricted to instance administrator sessions.",
+        "responses": {
+          "200": {
+            "description": "Instance storage configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceStorageStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateInstanceStorage",
+        "tags": [
+          "Instance"
+        ],
+        "summary": "Update instance storage configuration",
+        "description": "Persists the storage backend choice or restores deployment default. Probes target backend before updating. Restricted to instance administrator sessions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "backend": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "local",
+                      "s3",
+                      "default",
+                      null
+                    ],
+                    "description": "The storage backend to save ('local' or 's3'), or 'default' / null to restore deployment default.",
+                    "example": "local"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Current settings version for optimistic concurrency control.",
+                    "example": 1
+                  }
+                },
+                "required": [
+                  "backend",
+                  "version"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated instance storage configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceStorageStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Probe failed or invalid parameters",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Concurrent modification conflict",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/instance/storage/check": {
+      "post": {
+        "operationId": "checkInstanceStorage",
+        "tags": [
+          "Instance"
+        ],
+        "summary": "Check instance storage backend availability",
+        "description": "Runs a write/read/delete probe against the specified storage backend. Restricted to instance administrator sessions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "backend": {
+                    "type": "string",
+                    "enum": [
+                      "local",
+                      "s3"
+                    ],
+                    "description": "The storage backend to test ('local' or 's3').",
+                    "example": "local"
+                  }
+                },
+                "required": [
+                  "backend"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Storage check result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceStorageCheckResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }

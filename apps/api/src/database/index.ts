@@ -6,10 +6,12 @@ import {
   activityTableRelations,
   apikeyTableRelations,
   assetTableRelations,
+  assetUploadTableRelations,
   columnTableRelations,
   commentTableRelations,
   externalLinkTableRelations,
   githubIntegrationTableRelations,
+  instanceStorageSettingTableRelations,
   integrationTableRelations,
   invitationTableRelations,
   labelTableRelations,
@@ -39,6 +41,7 @@ import {
   activityTable,
   apikeyTable,
   assetTable,
+  assetUploadTable,
   billingEventTable,
   billingReminderSentTable,
   columnTable,
@@ -46,6 +49,7 @@ import {
   deviceCodeTable,
   externalLinkTable,
   githubIntegrationTable,
+  instanceStorageSettingTable,
   integrationTable,
   invitationTable,
   jobLeaseTable,
@@ -55,6 +59,7 @@ import {
   notificationTable,
   projectTable,
   sessionTable,
+  storageCleanupQueueTable,
   taskRelationTable,
   taskReminderSentTable,
   taskTable,
@@ -80,6 +85,7 @@ config();
 export const schema = {
   accountTable,
   assetTable,
+  assetUploadTable,
   activityTable,
   apikeyTable,
   billingReminderSentTable,
@@ -99,6 +105,8 @@ export const schema = {
   notificationTable,
   projectTable,
   sessionTable,
+  storageCleanupQueueTable,
+  instanceStorageSettingTable,
   taskRelationTable,
   taskReminderSentTable,
   taskTable,
@@ -118,12 +126,14 @@ export const schema = {
   workspaceUserTable,
   accountTableRelations,
   assetTableRelations,
+  assetUploadTableRelations,
   activityTableRelations,
   apikeyTableRelations,
   columnTableRelations,
   commentTableRelations,
   externalLinkTableRelations,
   githubIntegrationTableRelations,
+  instanceStorageSettingTableRelations,
   integrationTableRelations,
   invitationTableRelations,
   labelTableRelations,
@@ -148,7 +158,7 @@ export const schema = {
   workspaceUserTableRelations,
 };
 
-type DatabaseInstance = ReturnType<typeof drizzle<typeof schema>>;
+export type DatabaseInstance = ReturnType<typeof drizzle<typeof schema>>;
 
 let pool: Pool | undefined;
 let dbInstance: DatabaseInstance | undefined;
